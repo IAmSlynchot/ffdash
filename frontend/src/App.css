@@ -5,6 +5,57 @@
   text-align: left;
 }
 
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.app-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.app-header h1 {
+  margin: 0;
+}
+
+.app-subtitle {
+  color: var(--text);
+  font-size: 16px;
+  margin-top: 4px;
+}
+
+.top-nav {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--border);
+  margin: 24px 0 20px;
+}
+
+.top-nav-tab {
+  font-size: 16px;
+  font-weight: 600;
+  padding: 8px 2px 12px;
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.top-nav-tab:hover {
+  color: var(--text-h);
+}
+
+.top-nav-tab.active {
+  color: var(--text-h);
+  border-bottom-color: var(--accent);
+}
+
 .league-nav {
   display: flex;
   gap: 8px;
@@ -15,6 +66,7 @@
 }
 
 .league-nav-tab {
+  display: inline-block;
   font: inherit;
   font-size: 16px;
   padding: 8px 16px;
@@ -22,6 +74,7 @@
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text);
+  text-decoration: none;
   cursor: pointer;
   transition: border-color 0.2s, color 0.2s;
 }
@@ -36,12 +89,30 @@
   background: var(--accent-bg);
 }
 
-.league-header {
+.league-view-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
   margin-bottom: 20px;
+}
+
+.league-header {
+  margin: 0;
 }
 
 .league-header h2 {
   margin: 0 0 4px;
+}
+
+.season-select {
+  font: inherit;
+  font-size: 15px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
 }
 
 .status-message {
@@ -88,4 +159,48 @@
   height: 24px;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.avatar-lg {
+  width: 40px;
+  height: 40px;
+}
+
+.manager-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-h);
+  text-decoration: none;
+}
+
+.manager-link:hover {
+  text-decoration: underline;
+}
+
+.manager-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.manager-profile-header h2 {
+  margin: 0;
+}
+
+.manager-league-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.manager-league-list a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.manager-league-list a:hover {
+  text-decoration: underline;
 }

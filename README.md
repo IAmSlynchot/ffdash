@@ -1,21 +1,38 @@
 # ffdash — Fantasy Football Dashboard
 
-A small dashboard for 3 Sleeper fantasy football leagues. React frontend, Spring Boot
+A small dashboard for Sleeper fantasy football leagues. React frontend, Spring Boot
 backend that proxies/aggregates data from the public [Sleeper API](https://docs.sleeper.com).
 
 ## Structure
 
 - `backend/` — Spring Boot (Gradle) app. Fetches league/roster/user data from Sleeper
-  and exposes it as JSON at `/api/leagues` and `/api/leagues/{id}`.
-- `frontend/` — React + Vite app. Lets you toggle between the 3 leagues and shows
-  each one's standings.
+  and exposes it as JSON at `/api/leagues`, `/api/leagues/{key}`, and `/api/owners`.
+- `frontend/` — React + Vite app. Lets you toggle between leagues and shows each one's
+  current-season standings.
 
 ## Configuring leagues
 
-The 3 leagues are configured in [backend/src/main/resources/application.yml](backend/src/main/resources/application.yml)
-under `ffdash.leagues`, each with a Sleeper `id` (from the league's URL,
-`sleeper.com/leagues/<id>/...`) and a `displayName`. Edit that file to add, remove,
-or rename leagues.
+Sleeper gives each season of a league its own id, so a league here is a **family**: a
+stable `key` (used in the URL/nav) covering one Sleeper league id per season. Configured
+in [backend/src/main/resources/application.yml](backend/src/main/resources/application.yml)
+under `ffdash.leagues`:
+
+```yaml
+ffdash:
+  leagues:
+    - key: depot
+      displayName: "The Depot League"
+      type: FANTASY   # or PICKEM, for a Sleeper confidence-pool league
+      seasons:
+        - season: "2026"
+          leagueId: "1384614830836563968"
+        - season: "2025"
+          leagueId: "1253723165759123456"
+```
+
+Add a season by adding an entry to `seasons` (find the league id in its Sleeper URL,
+`sleeper.com/leagues/<id>/...`); add a whole new league by adding another family. No code
+change needed either way.
 
 ## Running locally
 

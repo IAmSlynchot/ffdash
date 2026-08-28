@@ -1,22 +1,21 @@
-import type { LeagueRef } from '../api/leagues'
+import { NavLink } from 'react-router-dom'
+import type { LeagueFamilyRef } from '../api/leagues'
 
 interface LeagueNavProps {
-  leagues: LeagueRef[]
-  selectedLeagueId: string | null
-  onSelect: (leagueId: string) => void
+  leagues: LeagueFamilyRef[]
 }
 
-export default function LeagueNav({ leagues, selectedLeagueId, onSelect }: LeagueNavProps) {
+export default function LeagueNav({ leagues }: LeagueNavProps) {
   return (
     <nav className="league-nav">
       {leagues.map((league) => (
-        <button
-          key={league.id}
-          className={league.id === selectedLeagueId ? 'league-nav-tab active' : 'league-nav-tab'}
-          onClick={() => onSelect(league.id)}
+        <NavLink
+          key={league.key}
+          to={`/leagues/${league.key}`}
+          className={({ isActive }) => (isActive ? 'league-nav-tab active' : 'league-nav-tab')}
         >
           {league.displayName}
-        </button>
+        </NavLink>
       ))}
     </nav>
   )

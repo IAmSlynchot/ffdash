@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/leagues")
+@RequestMapping("/api")
 public class LeagueController {
 
     private final LeagueService leagueService;
@@ -17,15 +17,21 @@ public class LeagueController {
         this.leagueService = leagueService;
     }
 
-    /** The configured leagues, for building navigation. */
-    @GetMapping
-    public List<LeagueRef> listLeagues() {
-        return leagueService.listLeagues();
+    /** The configured league families, for building navigation. */
+    @GetMapping("/leagues")
+    public List<LeagueFamilyRef> listLeagueFamilies() {
+        return leagueService.listLeagueFamilies();
     }
 
-    /** Full standings snapshot for one configured league. */
-    @GetMapping("/{leagueId}")
-    public LeagueSummary getLeague(@PathVariable String leagueId) {
-        return leagueService.getLeagueSummary(leagueId);
+    /** Full multi-season history for one league family. */
+    @GetMapping("/leagues/{key}")
+    public LeagueFamilyHistory getFamilyHistory(@PathVariable String key) {
+        return leagueService.getFamilyHistory(key);
+    }
+
+    /** Cross-league aggregate standings, one entry per Sleeper user. */
+    @GetMapping("/owners")
+    public List<OwnerCareerSummary> getOwnerCareerSummaries() {
+        return leagueService.getOwnerCareerSummaries();
     }
 }

@@ -1,32 +1,31 @@
-import { useEffect, useState } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import './App.css'
-import { fetchLeagues, type LeagueRef } from './api/leagues'
-import LeagueNav from './components/LeagueNav'
-import LeagueView from './components/LeagueView'
+import TopNav from './components/TopNav'
+import LeaguesPage from './pages/LeaguesPage'
+import ManagerListPage from './pages/ManagerListPage'
+import ManagerProfilePage from './pages/ManagerProfilePage'
 
 function App() {
-  const [leagues, setLeagues] = useState<LeagueRef[]>([])
-  const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetchLeagues()
-      .then((data) => {
-        setLeagues(data)
-        setSelectedLeagueId((current) => current ?? data[0]?.id ?? null)
-      })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-  }, [])
-
   return (
     <div className="app">
-      <h1>Fantasy Football Dashboard</h1>
+      <header className="app-header">
+        <img src="/ffDash.jpg" alt="ffDash logo" className="app-logo" />
+        <div>
+          <h1>ffDash</h1>
+          <p className="app-subtitle">The Fantasy Football Dashboard</p>
+        </div>
+      </header>
 
-      {error && <p className="status-message error">Failed to load leagues: {error}</p>}
+      <TopNav />
 
-      <LeagueNav leagues={leagues} selectedLeagueId={selectedLeagueId} onSelect={setSelectedLeagueId} />
-
-      {selectedLeagueId && <LeagueView leagueId={selectedLeagueId} />}
+      <Routes>
+        <Route path="/" element={<Navigate to="/leagues" replace />} />
+        <Route path="/leagues" element={<LeaguesPage />} />
+        <Route path="/leagues/:key" element={<LeaguesPage />} />
+        <Route path="/managers" element={<ManagerListPage />} />
+        <Route path="/managers/:userId" element={<ManagerProfilePage />} />
+        <Route path="*" element={<Navigate to="/leagues" replace />} />
+      </Routes>
     </div>
   )
 }

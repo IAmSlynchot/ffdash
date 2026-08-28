@@ -5,10 +5,32 @@ server:
 ffdash:
   cors-allowed-origins:
     - http://localhost:5173
+  cache:
+    # How long a still-in-progress season's data is served from cache before
+    # being refetched from Sleeper. Completed seasons are cached indefinitely.
+    live-season-ttl: 2m
   leagues:
-    - id: "1384614830836563968"
-      displayName: "Drake (Maye) Street"
-    - id: "1390778950359199744"
+    - key: depot
+      displayName: "The Depot League" # colloquial name; Sleeper's own display name for this league changes yearly
+      type: FANTASY
+      seasons:
+        - season: "2026"
+          leagueId: "1384614830836563968"
+        - season: "2025"
+          leagueId: "1253723165759123456"
+        - season: "2024"
+          leagueId: "1130624453110554624"
+    - key: fuzzy
       displayName: "Fuzzy Handcuffs"
-    - id: "1395086321013256192"
+      type: FANTASY
+      seasons:
+        - season: "2026"
+          leagueId: "1390778950359199744"
+    - key: pickem
       displayName: "Pick Six(teen)"
+      type: PICKEM
+      seasons:
+        - season: "2026"
+          leagueId: "1395086321013256192"
+        - season: "2025"
+          leagueId: "1269302787758370816"

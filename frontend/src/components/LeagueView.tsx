@@ -1,24 +1,28 @@
 import { useEffect, useState } from 'react'
-import { fetchLeagueSummary, type LeagueSummary } from '../api/leagues'
+import { useSearchParams } from 'react-router-dom'
+import {
+  aggregateAllSeasons,
+  fetchFamilyHistory,
+  type LeagueFamilyHistory,
+  type SeasonSummary,
+} from '../api/leagues'
 
 interface LeagueViewProps {
-  leagueId: string
+  leagueKey: string
 }
 
-export default function LeagueView({ leagueId }: LeagueViewProps) {
-  const [summary, setSummary] = useState<LeagueSummary | null>(null)
+export default function LeagueView({ leagueKey }: LeagueViewProps) {
+  const [history, setHistory] = useState<LeagueFamilyHistory | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   useEffect(() => {
     let cancelled = false
-    setSummary(null)
-    setError(null)
-    setLoading(true)
 
-    fetchLeagueSummary(leagueId)
+    fetchFamilyHistory(leagueKey)
       .then((data) => {
-        if (!cancelled) setSummary(data)
+        if (!cancelled) setHistory(data)
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err))
@@ -30,7 +34,7 @@ export default function LeagueView({ leagueId }: LeagueViewProps) {
     return () => {
       cancelled = true
     }
-  }, [leagueId])
+  }, [leagueKey])
 
   if (loading) {
     return <p className="status-message">Loading league…</p>
@@ -40,18 +44,47 @@ export default function LeagueView({ leagueId }: LeagueViewProps) {
     return <p className="status-message error">Failed to load league: {error}</p>
   }
 
-  if (!summary) {
+  if (!history || history.seasons.length === 0) {
     return null
+  }
+
+  const currentSeason = history.seasons[0].season
+  const requestedSeason = searchParams.get('season') ?? currentSeason
+  const season: SeasonSummary =
+    requestedSeason === 'all'
+      ? aggregateAllSeasons(history)
+      : (history.seasons.find((s) => s.season === requestedSeason) ?? history.seasons[0])
+
+  function handleSeasonChange(value: string) {
+    setSearchParams(value === currentSeason ? {} : { season: value })
   }
 
   return (
     <div className="league-view">
-      <header className="league-header">
-        <h2>{summary.name}</h2>
-        <p>
-          {summary.season} season · {summary.totalRosters} teams · {summary.status}
-        </p>
-      </header>
+      <div className="league-view-controls">
+        <header className="league-header">
+          <h2>{season.name}</h2>
+          <p>
+            {season.season !== 'All' && `${season.season} season · `}
+            {season.totalRosters} teams
+            {season.status !== 'combined' && ` · ${season.status}`}
+          </p>
+        </header>
+
+        <select
+          className="season-select"
+          value={requestedSeason}
+          onChange={(e) => handleSeasonChange(e.target.value)}
+          aria-label="Season"
+        >
+          {history.seasons.map((s) => (
+            <option key={s.season} value={s.season}>
+              {s.season}
+            </option>
+          ))}
+          <option value="all">All</option>
+        </select>
+      </div>
 
       <table className="standings-table">
         <thead>
@@ -65,8 +98,8 @@ export default function LeagueView({ leagueId }: LeagueViewProps) {
           </tr>
         </thead>
         <tbody>
-          {summary.teams.map((team) => (
-            <tr key={team.teamName}>
+          {season.teams.map((team) => (
+            <tr key={team.ownerUserId ?? team.teamName}>
               <td className="team-cell">
                 {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
                 {team.teamName}

@@ -4,9 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A dashboard for 3 Sleeper fantasy football leagues: a React frontend and a Spring Boot
+A dashboard for Sleeper fantasy football leagues: a React frontend and a Spring Boot
 backend that proxies/aggregates data from the public [Sleeper API](https://docs.sleeper.com).
 Monorepo with `backend/` and `frontend/` as independent, separately-run projects.
+
+Sleeper gives each season of a league its own league id (no id spans years), so the app
+models a **league family** — a stable app-level `key` (e.g. `depot`) covering several
+Sleeper league ids, one per season — rather than treating a Sleeper league id as the
+top-level concept. This is what most of the domain model below is structured around.
 
 ## Commands
 
@@ -29,25 +34,87 @@ There's no single top-level command — backend and frontend are built/run separ
 
 ## Architecture
 
-**Backend is a thin proxy/aggregator, not a data owner.** It has no database. On each
-request to `GET /api/leagues/{id}` ([LeagueController](backend/src/main/java/com/ffdash/league/LeagueController.java)),
-[LeagueService](backend/src/main/java/com/ffdash/league/LeagueService.java) calls three
-Sleeper endpoints via [SleeperClient](backend/src/main/java/com/ffdash/sleeper/SleeperClient.java)
-(`/league/{id}`, `/league/{id}/rosters`, `/league/{id}/users`), joins rosters to users by
-`owner_id`, and returns a single [LeagueSummary](backend/src/main/java/com/ffdash/league/LeagueSummary.java)
-DTO. `GET /api/leagues` just returns the configured league list/names, no Sleeper call.
+**Backend is a thin proxy/aggregator, not a data owner. No database** — see "Why no
+database" below; this is a config + in-memory caching problem instead.
 
-**The 3 leagues are config, not code.** They're declared in
-[application.yml](backend/src/main/resources/application.yml) under `ffdash.leagues`
-(id + displayName), bound via [LeaguesProperties](backend/src/main/java/com/ffdash/config/LeaguesProperties.java).
-`LeagueService` rejects any league id not in that list (`UnknownLeagueException` -> 404).
-Adding/removing/renaming a league is a one-file YAML edit, no code change.
+**Two layers do the work, split by scope:**
+- [SeasonDataService](backend/src/main/java/com/ffdash/league/SeasonDataService.java) —
+  one Sleeper league id in, one [SeasonSummary](backend/src/main/java/com/ffdash/league/SeasonSummary.java)
+  out. Calls three Sleeper endpoints via [SleeperClient](backend/src/main/java/com/ffdash/sleeper/SleeperClient.java)
+  (`/league/{id}`, `/league/{id}/rosters`, `/league/{id}/users`), joins rosters to users by
+  `owner_id`, ranks teams (wins desc, then points desc — the only ranking signal Sleeper's
+  API gives us), and **caches** the result (see below). This is where a single season's data
+  is assembled; it has no concept of "family" or history.
+- [LeagueService](backend/src/main/java/com/ffdash/league/LeagueService.java) — orchestrates
+  across families/seasons using `SeasonDataService`: `getFamilyHistory(key)` assembles one
+  family's full season list, `getOwnerCareerSummaries()` fetches *every* family's *every*
+  season and aggregates per Sleeper user (`user_id`, stable across leagues for the same
+  person — this is what makes cross-league aggregation possible without a database).
+  Each per-season fetch is wrapped in try/catch-and-skip so one bad/unreachable league id
+  degrades that one season out of the response instead of 500ing the whole request —
+  important once a single request (`/api/owners` especially) fans out to many Sleeper calls.
 
-**Frontend has no routing library.** [App.tsx](frontend/src/App.tsx) holds
-`selectedLeagueId` in plain React state; [LeagueNav](frontend/src/components/LeagueNav.tsx)
-is a tab bar that flips it, [LeagueView](frontend/src/components/LeagueView.tsx) fetches
-and renders the standings for whichever id is selected. This was a deliberate simplicity
-choice for 3 static tabs — reach for a router only if deep-linking or more views are needed.
+**Caching**: `SeasonDataService` holds a plain `ConcurrentHashMap<leagueId, CachedEntry>`.
+A season with `status == "complete"` is immutable, so once fetched it's cached forever;
+an in-progress season is refetched once its entry is older than
+`ffdash.cache.live-season-ttl` (default 2m, in `application.yml`). No external cache/DB —
+Render's single free-tier instance makes an in-process map sufficient. It's lost on every
+cold start (free tier spins down after 15m idle), which is an accepted tradeoff, not a bug.
+
+**Leagues are config, not code — including cross-year identity.** Declared in
+[application.yml](backend/src/main/resources/application.yml) under `ffdash.leagues`, bound
+via [LeaguesProperties](backend/src/main/java/com/ffdash/config/LeaguesProperties.java): each
+entry is a `LeagueFamilyConfig(key, displayName, type, seasons)`, where `seasons` is an
+ordered list of `{season, leagueId}` — Sleeper's `previous_league_id` season-chaining isn't
+used; season ids are hand-supplied. `type` is `FANTASY` or `PICKEM` — Pick'em is a
+confidence pool, not a head-to-head roster league, so it's structurally different (see
+below). `LeagueService` rejects any `key` not in that list (`UnknownLeagueException` -> 404).
+Adding a season to an existing league, or a whole new league, is a YAML edit, no code change.
+
+**`OwnerCareerSummary`'s combined fields are type-aware, not a blind sum**: `combinedWins`/
+`combinedLosses`/etc. only include `FANTASY`-type seasons (mixing pick'em outcomes into
+head-to-head win/loss totals would misrepresent both). `topThreeFinishes` counts `rank <= 3`
+across **all** types including `PICKEM`, but only where `status == "complete"` (a final
+placement, not a mid-season snapshot) — a genuinely different, format-agnostic achievement.
+If you're adding a new aggregate, check which of these two inclusion rules it should follow.
+
+**`TeamSummary` carries two different names on purpose**: `teamName` is a per-season nickname
+(can change every year, even per-league for the same person) used in League View standings;
+`ownerDisplayName` is the owner's stable Sleeper username, used to identify the *person*
+anywhere identity needs to be consistent across seasons/leagues (Manager View, and
+`OwnerCareerSummary.displayName`, which is sourced from it). Don't use `teamName` for the
+latter purpose.
+
+**Frontend is routed with `react-router-dom`**, URL-driven rather than component-state-driven
+— e.g. the League View season selector is a `?season=` query param (`all` is a valid value,
+handled client-side, see below), not local state, so a specific year/aggregate is a
+shareable link. Two top-level sections under [App.tsx](frontend/src/App.tsx)'s `TopNav`:
+- **League View** (`/leagues/:key`) — [LeaguesPage](frontend/src/pages/LeaguesPage.tsx)
+  redirects bare `/leagues` to the first configured family, then renders `LeagueNav` (tabs)
+  + [LeagueView](frontend/src/components/LeagueView.tsx). `LeagueView` is remounted (`key={key}`
+  in `LeaguesPage`) on every league switch rather than resetting its own state in an effect —
+  keep that pattern for similar fetch-on-prop-change components; manually calling `setState`
+  synchronously inside an effect is exactly what `oxlint`'s `set-state-in-effect` rule flags.
+  Its season `<select>` includes every real season plus `All`; `All` doesn't hit the backend —
+  it runs [aggregateAllSeasons](frontend/src/api/leagues.ts) client-side over the
+  already-fetched `LeagueFamilyHistory` (that endpoint returns every season in one call
+  anyway), mirroring the backend's own combining logic but scoped to just that one family.
+- **Manager View** (`/managers`, `/managers/:userId`) — thin pages over `GET /api/owners`:
+  a list table, and a per-manager page that re-fetches the same endpoint and filters by
+  `userId` client-side (rather than passing data via router state) so a direct link/reload
+  works standalone. Profile content beyond "which leagues is this person in" is intentionally
+  unbuilt — a deliberate gap pending a real design pass, not an oversight.
+
+## Why no database
+
+Two things that look like they need one, don't: `user_id` is stable across leagues for the
+same Sleeper account (enables cross-league aggregation by grouping), and Sleeper exposes
+season-history natively via `previous_league_id` chaining, even though this app opts to
+hand-configure season ids instead of walking that chain live. Both needs turned out to be
+config + in-memory caching, not persistence. If a future feature genuinely needs durable
+storage (survives restarts, or data with no Sleeper source of truth), don't reach for
+Render's own free Postgres — it expires after 30 days unless upgraded. Neon or Supabase's
+free tiers don't expire and plug in the same way (a connection-string env var).
 
 **Dev vs. prod API wiring differs and both ends must stay in sync:**
 - Dev: [vite.config.ts](frontend/vite.config.ts) proxies `/api/*` to `localhost:8080`;
@@ -67,10 +134,10 @@ choice for 3 static tabs — reach for a router only if deep-linking or more vie
 - [SleeperUser](backend/src/main/java/com/ffdash/sleeper/SleeperUser.java) — a team's
   custom name lives in a free-form `metadata` map (`team_name`), not a top-level field;
   `teamName()` falls back to `display_name` when unset.
-- Not every configured league is a normal roster league — one of the three
-  (`Pick Six(teen)`) is a Sleeper Pick'em pool (`sport: "pickem:nfl"`), which has no real
-  team rosters/nicknames, just usernames. The standings view still renders it, just with
-  thinner data.
+- The `pickem` family (`Pick Six(teen)`) is a Sleeper Pick'em pool (`sport: "pickem:nfl"`),
+  not a real roster league — no team rosters/nicknames, just usernames. This is exactly why
+  `LeagueFamilyConfig.type` exists; see the `OwnerCareerSummary` note above for how that
+  type is actually used downstream.
 
 ## Deployment
 
