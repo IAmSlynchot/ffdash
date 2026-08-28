@@ -26,3 +26,9 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+// Only produce the executable Spring Boot jar (build/libs/*.jar), not also
+// the plain non-executable one — keeps the Dockerfile's copy glob unambiguous.
+tasks.named('jar') {
+	enabled = false
+}

@@ -1,6 +1,12 @@
 // Types mirror the backend's LeagueRef / LeagueSummary / TeamSummary DTOs
 // (see backend/src/main/java/com/ffdash/league).
 
+// In local dev this is unset, so calls go to a relative /api/... path that
+// Vite's dev server proxies to the backend (see vite.config.ts). In
+// production (a statically hosted build), set VITE_API_BASE_URL at build
+// time to the backend's deployed origin, e.g. https://ffdash-backend.onrender.com
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
+
 export interface LeagueRef {
   id: string
   displayName: string
@@ -34,9 +40,9 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 export function fetchLeagues(): Promise<LeagueRef[]> {
-  return fetchJson('/api/leagues')
+  return fetchJson(`${API_BASE_URL}/api/leagues`)
 }
 
 export function fetchLeagueSummary(leagueId: string): Promise<LeagueSummary> {
-  return fetchJson(`/api/leagues/${leagueId}`)
+  return fetchJson(`${API_BASE_URL}/api/leagues/${leagueId}`)
 }

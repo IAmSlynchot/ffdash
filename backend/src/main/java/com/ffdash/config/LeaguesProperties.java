@@ -12,7 +12,7 @@ import java.util.List;
 public class LeaguesProperties {
 
     private List<LeagueConfig> leagues = List.of();
-    private String corsAllowedOrigin;
+    private List<String> corsAllowedOrigins = List.of();
 
     public List<LeagueConfig> getLeagues() {
         return leagues;
@@ -22,12 +22,12 @@ public class LeaguesProperties {
         this.leagues = leagues;
     }
 
-    public String getCorsAllowedOrigin() {
-        return corsAllowedOrigin;
+    public List<String> getCorsAllowedOrigins() {
+        return corsAllowedOrigins;
     }
 
-    public void setCorsAllowedOrigin(String corsAllowedOrigin) {
-        this.corsAllowedOrigin = corsAllowedOrigin;
+    public void setCorsAllowedOrigins(List<String> corsAllowedOrigins) {
+        this.corsAllowedOrigins = corsAllowedOrigins;
     }
 
     public record LeagueConfig(String id, String displayName) {

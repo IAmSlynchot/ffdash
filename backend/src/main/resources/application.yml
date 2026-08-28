@@ -1,8 +1,10 @@
 server:
-  port: 8080
+  # Render (and most PaaS hosts) assign the port to listen on via $PORT.
+  port: ${PORT:8080}
 
 ffdash:
-  cors-allowed-origin: http://localhost:5173
+  cors-allowed-origins:
+    - http://localhost:5173
   leagues:
     - id: "1384614830836563968"
       displayName: "Drake (Maye) Street"

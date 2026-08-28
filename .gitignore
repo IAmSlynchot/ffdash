@@ -2,6 +2,7 @@
 backend/build/
 backend/.gradle/
 backend/out/
+backend/bin/
 !backend/gradle/wrapper/gradle-wrapper.jar
 
 # Node / Vite
