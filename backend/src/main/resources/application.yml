@@ -1,0 +1,12 @@
+server:
+  port: 8080
+
+ffdash:
+  cors-allowed-origin: http://localhost:5173
+  leagues:
+    - id: "1384614830836563968"
+      displayName: "Drake (Maye) Street"
+    - id: "1390778950359199744"
+      displayName: "Fuzzy Handcuffs"
+    - id: "1395086321013256192"
+      displayName: "Pick Six(teen)"

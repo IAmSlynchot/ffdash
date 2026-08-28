@@ -1,0 +1,91 @@
+.app {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+  text-align: left;
+}
+
+.league-nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+}
+
+.league-nav-tab {
+  font: inherit;
+  font-size: 16px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.league-nav-tab:hover {
+  border-color: var(--accent-border);
+}
+
+.league-nav-tab.active {
+  border-color: var(--accent);
+  color: var(--text-h);
+  background: var(--accent-bg);
+}
+
+.league-header {
+  margin-bottom: 20px;
+}
+
+.league-header h2 {
+  margin: 0 0 4px;
+}
+
+.status-message {
+  padding: 24px 0;
+  font-size: 16px;
+}
+
+.status-message.error {
+  color: #e05252;
+}
+
+.standings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.standings-table th,
+.standings-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.standings-table th {
+  color: var(--text-h);
+  font-weight: 500;
+}
+
+.standings-table td:not(.team-cell),
+.standings-table th:not(:first-child) {
+  text-align: right;
+}
+
+.team-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-h);
+}
+
+.avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
