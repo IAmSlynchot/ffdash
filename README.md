@@ -54,7 +54,7 @@ This repo includes a [render.yaml](render.yaml) Blueprint that deploys both serv
 
 You'll end up with:
 - `https://ffdash-backend.onrender.com` — the API
-- `https://ffdash-frontend.onrender.com` — the dashboard
+- `https://ffdash.onrender.com` — the dashboard
 
 (Rename either service in the Render dashboard before applying if you want different subdomains — just update the `VITE_API_BASE_URL` and `FFDASH_CORS_ALLOWED_ORIGINS` values in `render.yaml` to match, since those two env vars are what let the two services find each other.)
 
