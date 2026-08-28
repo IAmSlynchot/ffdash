@@ -1,13 +1,17 @@
 # Build stage: compile the Spring Boot app into an executable jar.
-FROM eclipse-temurin:21-jdk AS build
+# Uses an image with Gradle preinstalled (matching the wrapper's pinned
+# version) so the build doesn't also have to cold-download the Gradle
+# distribution itself on top of resolving Maven dependencies.
+FROM gradle:8.10.2-jdk21 AS build
 WORKDIR /app
 
-COPY gradlew settings.gradle build.gradle ./
-COPY gradle gradle
-RUN chmod +x gradlew
+# Resolve dependencies in their own layer first, so Docker only re-runs this
+# (slow) step when build.gradle/settings.gradle change, not on every source edit.
+COPY settings.gradle build.gradle ./
+RUN gradle --no-daemon dependencies
 
 COPY src src
-RUN ./gradlew bootJar --no-daemon
+RUN gradle --no-daemon bootJar
 
 # Run stage: a slim JRE image with just the built jar.
 FROM eclipse-temurin:21-jre
