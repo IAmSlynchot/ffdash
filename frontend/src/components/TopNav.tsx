@@ -4,10 +4,10 @@ export default function TopNav() {
   return (
     <nav className="top-nav">
       <NavLink to="/leagues" className={({ isActive }) => (isActive ? 'top-nav-tab active' : 'top-nav-tab')}>
-        League View
+        Leagues
       </NavLink>
       <NavLink to="/managers" className={({ isActive }) => (isActive ? 'top-nav-tab active' : 'top-nav-tab')}>
-        Manager View
+        Managers
       </NavLink>
     </nav>
   )

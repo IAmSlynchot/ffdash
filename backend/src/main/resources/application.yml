@@ -43,3 +43,12 @@ ffdash:
           leagueId: "1395086321013256192"
         - season: "2025"
           leagueId: "1269302787758370816"
+  pickem:
+    # Optional buy-in for the pick'em pool: only owners listed here (by their
+    # Sleeper display name, case-insensitive) are eligible for that season's
+    # prize money — everyone else can still play, just not for the pot.
+    # Sleeper has no concept of this, so it's hand-maintained; update it each
+    # season as people pay in.
+    buy-ins:
+      "2026": ["slynchot", "cmcd725", "DGaito78", "darbeite", "MelloKF", "jaredbarends", "torivaph", "UltimaKDon", "WooderIce1"]
+      "2025": []

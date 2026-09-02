@@ -4,6 +4,7 @@ import com.ffdash.config.LeaguesProperties;
 import com.ffdash.config.LeaguesProperties.LeagueFamilyConfig;
 import com.ffdash.config.LeaguesProperties.LeagueType;
 import com.ffdash.config.LeaguesProperties.SeasonConfig;
+import com.ffdash.config.PickemProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -29,10 +30,12 @@ public class LeagueService {
 
     private final SeasonDataService seasonDataService;
     private final LeaguesProperties leaguesProperties;
+    private final PickemProperties pickemProperties;
 
-    public LeagueService(SeasonDataService seasonDataService, LeaguesProperties leaguesProperties) {
+    public LeagueService(SeasonDataService seasonDataService, LeaguesProperties leaguesProperties, PickemProperties pickemProperties) {
         this.seasonDataService = seasonDataService;
         this.leaguesProperties = leaguesProperties;
+        this.pickemProperties = pickemProperties;
     }
 
     public List<LeagueFamilyRef> listLeagueFamilies() {
@@ -50,7 +53,7 @@ public class LeagueService {
                 .sorted(Comparator.comparing(SeasonSummary::season).reversed())
                 .toList();
 
-        return new LeagueFamilyHistory(family.key(), family.displayName(), seasons);
+        return new LeagueFamilyHistory(family.key(), family.displayName(), family.type(), seasons);
     }
 
     public List<OwnerCareerSummary> getOwnerCareerSummaries() {
@@ -137,12 +140,32 @@ public class LeagueService {
     /** Empty if this season's data couldn't be fetched, so one bad/unreachable league id doesn't fail the whole response. */
     private Optional<SeasonSummary> fetchSeason(LeagueFamilyConfig family, SeasonConfig seasonConfig) {
         try {
-            return Optional.of(seasonDataService.getSeasonSummary(seasonConfig.leagueId()));
+            SeasonSummary summary = seasonDataService.getSeasonSummary(seasonConfig.leagueId());
+            return Optional.of(withBuyIns(family, seasonConfig, summary));
         } catch (RuntimeException e) {
             log.warn("Skipping {} {} season (league id {}): {}",
                     family.key(), seasonConfig.season(), seasonConfig.leagueId(), e.getMessage());
             return Optional.empty();
         }
+    }
+
+    /**
+     * Pick'em only: stamps each team with whether its owner paid that season's
+     * buy-in (see PickemProperties), so League View can show who's actually
+     * competing for the pot. No-op for FANTASY leagues, where it doesn't apply.
+     */
+    private SeasonSummary withBuyIns(LeagueFamilyConfig family, SeasonConfig seasonConfig, SeasonSummary summary) {
+        if (family.type() != LeagueType.PICKEM) {
+            return summary;
+        }
+        List<TeamSummary> teams = summary.teams().stream()
+                .map(team -> new TeamSummary(
+                        team.ownerUserId(), team.ownerDisplayName(), team.teamName(), team.avatarUrl(), team.rank(),
+                        team.wins(), team.losses(), team.ties(), team.pointsFor(), team.pointsAgainst(),
+                        pickemProperties.hasPaid(seasonConfig.season(), team.ownerDisplayName())
+                ))
+                .toList();
+        return new SeasonSummary(summary.leagueId(), summary.season(), summary.name(), summary.status(), summary.totalRosters(), teams);
     }
 
     private record OwnerSeasonEntry(LeagueFamilyConfig family, SeasonSummary season, TeamSummary team) {

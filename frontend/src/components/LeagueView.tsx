@@ -58,7 +58,8 @@ export default function LeagueView({ leagueKey }: LeagueViewProps) {
       <table className="standings-table">
         <thead>
           <tr>
-            <th>Team</th>
+            <th>Rank</th>
+            <th className="team-col">Team</th>
             <th>W</th>
             <th>L</th>
             <th>T</th>
@@ -69,9 +70,15 @@ export default function LeagueView({ leagueKey }: LeagueViewProps) {
         <tbody>
           {season.teams.map((team) => (
             <tr key={team.ownerUserId ?? team.teamName}>
+              <td className="rank-cell">{team.rank}</td>
               <td className="team-cell">
                 {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
                 {team.teamName}
+                {history.type === 'PICKEM' && team.boughtIn && (
+                  <span className="buyin-badge" title="Paid the buy-in — eligible for prize money">
+                    Buy-in
+                  </span>
+                )}
               </td>
               <td>{team.wins}</td>
               <td>{team.losses}</td>

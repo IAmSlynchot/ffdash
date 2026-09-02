@@ -103,14 +103,15 @@ public class SeasonDataService {
                 settings != null && settings.losses() != null ? settings.losses() : 0,
                 settings != null && settings.ties() != null ? settings.ties() : 0,
                 settings != null ? settings.pointsFor() : 0,
-                settings != null ? settings.pointsAgainst() : 0
+                settings != null ? settings.pointsAgainst() : 0,
+                false // boughtIn is stamped in by LeagueService, which knows family type + season; this layer doesn't
         );
     }
 
     private static TeamSummary withRank(TeamSummary team, int rank) {
         return new TeamSummary(
                 team.ownerUserId(), team.ownerDisplayName(), team.teamName(), team.avatarUrl(), rank,
-                team.wins(), team.losses(), team.ties(), team.pointsFor(), team.pointsAgainst()
+                team.wins(), team.losses(), team.ties(), team.pointsFor(), team.pointsAgainst(), team.boughtIn()
         );
     }
 

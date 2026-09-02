@@ -25,6 +25,8 @@ export interface TeamSummary {
   ties: number
   pointsFor: number
   pointsAgainst: number
+  /** Pick'em only: whether this owner paid that season's buy-in and is eligible for prize money. Always false for FANTASY leagues. */
+  boughtIn: boolean
 }
 
 export interface SeasonSummary {
@@ -36,9 +38,12 @@ export interface SeasonSummary {
   teams: TeamSummary[]
 }
 
+export type LeagueType = 'FANTASY' | 'PICKEM'
+
 export interface LeagueFamilyHistory {
   key: string
   displayName: string
+  type: LeagueType
   /** Newest season first. */
   seasons: SeasonSummary[]
 }
@@ -104,6 +109,7 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
     ties: number
     pointsFor: number
     pointsAgainst: number
+    boughtIn: boolean
   }
 
   const byOwner = new Map<string, Accumulator>()
@@ -125,6 +131,7 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
         ties: 0,
         pointsFor: 0,
         pointsAgainst: 0,
+        boughtIn: false,
       }
 
       if (isNewer) {
@@ -132,6 +139,9 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
         acc.teamName = team.teamName
         acc.avatarUrl = team.avatarUrl
         acc.latestSeason = season.season
+        // "Bought in" reflects the most recent season only — buy-ins are paid per season (see
+        // PickemProperties), so "competing for the pot" means this year, not any past year.
+        acc.boughtIn = team.boughtIn
       }
 
       acc.wins += team.wins
@@ -157,6 +167,7 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
       ties: acc.ties,
       pointsFor: acc.pointsFor,
       pointsAgainst: acc.pointsAgainst,
+      boughtIn: acc.boughtIn,
     }))
 
   return {
