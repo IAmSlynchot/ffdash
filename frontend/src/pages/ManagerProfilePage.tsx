@@ -1,40 +1,23 @@
-import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { fetchOwnerCareerSummaries, type OwnerCareerSummary } from '../api/leagues'
+import { fetchOwnerCareerSummaries } from '../api/leagues'
+import { useApiData } from '../hooks/useApiData'
+import LoadingStatus from '../components/LoadingStatus'
 
 export default function ManagerProfilePage() {
   const { userId } = useParams<{ userId: string }>()
-  const [owner, setOwner] = useState<OwnerCareerSummary | null>(null)
-  const [notFound, setNotFound] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!userId) return
+  // Re-fetches the full list (rather than passing data via router state) so a
+  // direct link or page reload works on its own — cheap given the backend's
+  // own caching.
+  const { data: owners, error, loading, slow, retry } = useApiData(fetchOwnerCareerSummaries, [])
 
-    // Re-fetched (rather than passed via route state) so a direct link or
-    // page reload works on its own — cheap given the backend's own caching.
-    fetchOwnerCareerSummaries()
-      .then((owners) => {
-        const match = owners.find((o) => o.userId === userId)
-        if (match) {
-          setOwner(match)
-        } else {
-          setNotFound(true)
-        }
-      })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-  }, [userId])
-
-  if (error) {
-    return <p className="status-message error">Failed to load manager: {error}</p>
+  if (loading || error || !owners) {
+    return <LoadingStatus loading={loading} slow={slow} error={error} retry={retry} subject="manager" />
   }
 
-  if (notFound) {
-    return <p className="status-message">Manager not found.</p>
-  }
-
+  const owner = owners.find((o) => o.userId === userId)
   if (!owner) {
-    return <p className="status-message">Loading manager…</p>
+    return <p className="status-message">Manager not found.</p>
   }
 
   // Leagues this owner is part of, deduped from their per-season results.

@@ -75,6 +75,13 @@ You'll end up with:
 
 (Rename either service in the Render dashboard before applying if you want different subdomains — just update the `VITE_API_BASE_URL` and `FFDASH_CORS_ALLOWED_ORIGINS` values in `render.yaml` to match, since those two env vars are what let the two services find each other.)
 
-**Free tier note:** the backend web service spins down after 15 minutes of inactivity and takes ~30–50s to wake back up on the next request. The static frontend has no such delay.
+**Free tier note:** the backend web service spins down after 15 minutes of inactivity and can take up to ~a minute to wake back up on the next request (the frontend shows a "waking up the server" message and recovers on its own — no refresh needed — while this happens). The static frontend has no such delay.
+
+**Keeping the backend warm (recommended):** to avoid that wait almost entirely, set up a free uptime monitor to ping the backend every few minutes so it never sits idle long enough to spin down:
+1. Create a free account at [uptimerobot.com](https://uptimerobot.com) (or any similar service, e.g. cron-job.org).
+2. Add an HTTP(s) monitor pointed at `https://ffdash-backend.onrender.com/api/leagues` (adjust if you renamed the service) — this endpoint is pure config, no outbound Sleeper calls, so it's a cheap, side-effect-free ping.
+3. Set the check interval to 5 minutes (comfortably under Render's 15-minute idle timeout).
+
+No code or redeploy needed — it's just external traffic keeping the service active.
 
 **Manual setup (if you'd rather not use the Blueprint):** create a Docker-based Web Service pointed at `backend/` (Dockerfile at `backend/Dockerfile`) with env var `FFDASH_CORS_ALLOWED_ORIGINS=<your frontend URL>`, and a Static Site pointed at `frontend/` with build command `npm install && npm run build`, publish directory `dist`, and env var `VITE_API_BASE_URL=<your backend URL>`.

@@ -1,23 +1,13 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchOwnerCareerSummaries, type OwnerCareerSummary } from '../api/leagues'
+import { fetchOwnerCareerSummaries } from '../api/leagues'
+import { useApiData } from '../hooks/useApiData'
+import LoadingStatus from '../components/LoadingStatus'
 
 export default function ManagerListPage() {
-  const [owners, setOwners] = useState<OwnerCareerSummary[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { data: owners, error, loading, slow, retry } = useApiData(fetchOwnerCareerSummaries, [])
 
-  useEffect(() => {
-    fetchOwnerCareerSummaries()
-      .then(setOwners)
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-  }, [])
-
-  if (error) {
-    return <p className="status-message error">Failed to load managers: {error}</p>
-  }
-
-  if (!owners) {
-    return <p className="status-message">Loading managers…</p>
+  if (loading || error || !owners) {
+    return <LoadingStatus loading={loading} slow={slow} error={error} retry={retry} subject="managers" />
   }
 
   return (

@@ -1,50 +1,21 @@
-import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import {
-  aggregateAllSeasons,
-  fetchFamilyHistory,
-  type LeagueFamilyHistory,
-  type SeasonSummary,
-} from '../api/leagues'
+import { aggregateAllSeasons, fetchFamilyHistory, type SeasonSummary } from '../api/leagues'
+import { useApiData } from '../hooks/useApiData'
+import LoadingStatus from './LoadingStatus'
 
 interface LeagueViewProps {
   leagueKey: string
 }
 
 export default function LeagueView({ leagueKey }: LeagueViewProps) {
-  const [history, setHistory] = useState<LeagueFamilyHistory | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { data: history, error, loading, slow, retry } = useApiData(() => fetchFamilyHistory(leagueKey), [leagueKey])
   const [searchParams, setSearchParams] = useSearchParams()
 
-  useEffect(() => {
-    let cancelled = false
-
-    fetchFamilyHistory(leagueKey)
-      .then((data) => {
-        if (!cancelled) setHistory(data)
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [leagueKey])
-
-  if (loading) {
-    return <p className="status-message">Loading league…</p>
+  if (loading || error || !history) {
+    return <LoadingStatus loading={loading} slow={slow} error={error} retry={retry} subject="league" />
   }
 
-  if (error) {
-    return <p className="status-message error">Failed to load league: {error}</p>
-  }
-
-  if (!history || history.seasons.length === 0) {
+  if (history.seasons.length === 0) {
     return null
   }
 
@@ -65,9 +36,7 @@ export default function LeagueView({ leagueKey }: LeagueViewProps) {
         <header className="league-header">
           <h2>{season.name}</h2>
           <p>
-            {season.season !== 'All' && `${season.season} season · `}
-            {season.totalRosters} teams
-            {season.status !== 'combined' && ` · ${season.status}`}
+            {season.season !== 'All' && `${season.season} season`}
           </p>
         </header>
 

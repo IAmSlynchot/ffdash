@@ -61,6 +61,18 @@ an in-progress season is refetched once its entry is older than
 Render's single free-tier instance makes an in-process map sufficient. It's lost on every
 cold start (free tier spins down after 15m idle), which is an accepted tradeoff, not a bug.
 
+**Cold-start wake-up (~1 min) is Render's container orchestration, not app startup** —
+measured: this app's own JVM+Spring Boot startup is ~1s either way, `spring.main.lazy-
+initialization: true` (application.yml) only saved ~0.1s of that. Don't spend more effort
+tuning app-side startup time for this; it's not where the delay is. The frontend is what
+actually needed to change: every backend fetch goes through
+[useApiData](frontend/src/hooks/useApiData.ts) + [LoadingStatus](frontend/src/components/LoadingStatus.tsx),
+which auto-retries on failure, flags `slow` once a request has been pending/retrying longer
+than a normal response should take (so "waking up the server…" replaces what used to be a
+blank screen), and recovers on its own with no page reload needed once the backend responds.
+Any new page that fetches from the backend should use this pair rather than rolling its own
+loading/error state.
+
 **Leagues are config, not code — including cross-year identity.** Declared in
 [application.yml](backend/src/main/resources/application.yml) under `ffdash.leagues`, bound
 via [LeaguesProperties](backend/src/main/java/com/ffdash/config/LeaguesProperties.java): each

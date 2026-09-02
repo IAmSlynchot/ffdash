@@ -1,29 +1,24 @@
-import { useEffect, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
-import { fetchLeagueFamilies, type LeagueFamilyRef } from '../api/leagues'
+import { fetchLeagueFamilies } from '../api/leagues'
+import { useApiData } from '../hooks/useApiData'
 import LeagueNav from '../components/LeagueNav'
 import LeagueView from '../components/LeagueView'
+import LoadingStatus from '../components/LoadingStatus'
 
 export default function LeaguesPage() {
   const { key } = useParams<{ key: string }>()
-  const [leagues, setLeagues] = useState<LeagueFamilyRef[]>([])
-  const [error, setError] = useState<string | null>(null)
+  const { data: leagues, error, loading, slow, retry } = useApiData(fetchLeagueFamilies, [])
 
-  useEffect(() => {
-    fetchLeagueFamilies()
-      .then(setLeagues)
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-  }, [])
+  if (loading || error || !leagues) {
+    return <LoadingStatus loading={loading} slow={slow} error={error} retry={retry} subject="leagues" />
+  }
 
-  if (error) {
-    return <p className="status-message error">Failed to load leagues: {error}</p>
+  if (leagues.length === 0) {
+    return <p className="status-message">No leagues configured.</p>
   }
 
   // No league selected yet (e.g. landed on /leagues directly) — default to the first one.
   if (!key) {
-    if (leagues.length === 0) {
-      return null
-    }
     return <Navigate to={`/leagues/${leagues[0].key}`} replace />
   }
 

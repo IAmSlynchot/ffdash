@@ -124,6 +124,21 @@
   color: #e05252;
 }
 
+.retry-button {
+  font: inherit;
+  font-size: 14px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid currentcolor;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.retry-button:hover {
+  background: rgba(224, 82, 82, 0.1);
+}
+
 .standings-table {
   width: 100%;
   border-collapse: collapse;
