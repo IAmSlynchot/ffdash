@@ -168,10 +168,12 @@ public class LeagueService {
     }
 
     /**
-     * Per-type eligibility for one (owner, family, season) entry. Fantasy placement badges
-     * (CHAMPION, TOP_3, TOILET_CHAMP) key off that season's playoff/toilet-bowl bracket
-     * (TeamSummary.playoffPlacement) rather than the regular-season standings rank — Pick'em
-     * has no playoffs, so its placement badges (TOP_3, PICKINATOR) use rank instead.
+     * Per-type eligibility for one (owner, family, season) entry. Fantasy placement badges key
+     * off that season's playoff bracket rather than the regular-season standings rank — CHAMPION
+     * and the fantasy half of TOP_3 use TeamSummary.playoffPlacement (the main bracket's 1..N
+     * standing), while TOILET_CHAMP uses the separate TeamSummary.toiletBowlChamp flag (the
+     * consolation bracket's own winner, which doesn't correspond to any single placement number).
+     * Pick'em has no playoffs, so its placement badges (TOP_3, PICKINATOR) use rank instead.
      */
     private static boolean isEligible(BadgeType type, OwnerSeasonEntry e, boolean seasonComplete) {
         return switch (type) {
@@ -180,7 +182,7 @@ public class LeagueService {
             case FOUNDING_MEMBER -> isFoundingSeason(e);
             case CHAMPION -> seasonComplete && isPlacement(e, 1);
             case TOP_3 -> seasonComplete && isTopThree(e);
-            case TOILET_CHAMP -> seasonComplete && isLastPlace(e);
+            case TOILET_CHAMP -> seasonComplete && e.team().toiletBowlChamp();
             case PICKINATOR -> seasonComplete && e.team().rank() == 1;
             case TOP_SCORER -> seasonComplete && e.team().pointsFor() == maxAmong(e, TeamSummary::pointsFor);
             case ADVERSITY_SPECIALIST -> seasonComplete && e.team().pointsAgainst() == maxAmong(e, TeamSummary::pointsAgainst);
@@ -206,21 +208,6 @@ public class LeagueService {
             case FANTASY -> e.team().playoffPlacement() != null && e.team().playoffPlacement() <= TOP_FINISH_THRESHOLD;
             case PICKEM -> e.team().rank() <= TOP_FINISH_THRESHOLD;
         };
-    }
-
-    /** Worst playoffPlacement among that season's teams — the "toilet bowl" bracket's own last place. */
-    private static boolean isLastPlace(OwnerSeasonEntry e) {
-        Integer placement = e.team().playoffPlacement();
-        if (placement == null) {
-            return false;
-        }
-        int worst = e.season().teams().stream()
-                .map(TeamSummary::playoffPlacement)
-                .filter(p -> p != null)
-                .mapToInt(Integer::intValue)
-                .max()
-                .orElse(Integer.MIN_VALUE);
-        return placement == worst;
     }
 
     private static double maxAmong(OwnerSeasonEntry e, ToDoubleFunction<TeamSummary> metric) {
@@ -268,7 +255,7 @@ public class LeagueService {
                         team.ownerUserId(), team.ownerDisplayName(), team.teamName(), team.avatarUrl(), team.rank(),
                         team.wins(), team.losses(), team.ties(), team.pointsFor(), team.pointsAgainst(),
                         pickemProperties.hasPaid(seasonConfig.season(), team.ownerDisplayName()),
-                        team.playoffPlacement()
+                        team.playoffPlacement(), team.toiletBowlChamp()
                 ))
                 .toList();
         return new SeasonSummary(summary.leagueId(), summary.season(), summary.name(), summary.status(), summary.totalRosters(), teams);

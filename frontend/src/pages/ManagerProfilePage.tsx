@@ -72,6 +72,9 @@ export default function ManagerProfilePage() {
                       <span className="badge-title">
                         {badge.title}
                         {older.length > 0 && <span className="badge-count">×{badge.earnings.length}</span>}
+                        <button type="button" className="badge-info" title={badge.description} aria-label={`About ${badge.title}`}>
+                          ?
+                        </button>
                       </span>
                       {older.length === 0 ? (
                         <span className="badge-subtitle">{mostRecent.subtitle}</span>

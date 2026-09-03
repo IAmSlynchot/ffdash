@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { aggregateAllSeasons, fetchFamilyHistory, type SeasonSummary } from '../api/leagues'
 import { useApiData } from '../hooks/useApiData'
 import LoadingStatus from './LoadingStatus'
@@ -72,8 +72,17 @@ export default function LeagueView({ leagueKey }: LeagueViewProps) {
             <tr key={team.ownerUserId ?? team.teamName}>
               <td className="rank-cell">{team.rank}</td>
               <td className="team-cell">
-                {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
-                {team.teamName}
+                {team.ownerUserId ? (
+                  <Link to={`/managers/${team.ownerUserId}`} className="manager-link">
+                    {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
+                    {team.teamName}
+                  </Link>
+                ) : (
+                  <>
+                    {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
+                    {team.teamName}
+                  </>
+                )}
                 {history.type === 'PICKEM' && team.boughtIn && (
                   <span className="buyin-badge" title="Paid the buy-in — eligible for prize money">
                     Buy-in

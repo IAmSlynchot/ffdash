@@ -297,17 +297,43 @@
 }
 
 .badge-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
   color: var(--accent);
   font-size: 14px;
 }
 
 .badge-count {
-  margin-left: 6px;
   font-size: 12px;
   font-weight: 600;
   color: var(--accent);
   opacity: 0.7;
+}
+
+.badge-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--accent-border);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  cursor: help;
+}
+
+.badge-info:hover,
+.badge-info:focus-visible {
+  background: var(--accent-bg);
 }
 
 .badge-subtitle {

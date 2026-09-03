@@ -60,12 +60,17 @@ public class SeasonDataService {
         List<SleeperRoster> rosters = sleeperClient.getRosters(leagueId);
         List<SleeperUser> users = sleeperClient.getUsers(leagueId);
         Map<Integer, Integer> placementByRosterId = fetchPlayoffPlacements(leagueId);
+        Integer toiletBowlChampionRosterId = fetchToiletBowlChampion(leagueId);
 
         Map<String, SleeperUser> usersById = users.stream()
                 .collect(Collectors.toMap(SleeperUser::user_id, Function.identity()));
 
         List<TeamSummary> ranked = rosters.stream()
-                .map(roster -> toTeamSummary(roster, usersById.get(roster.owner_id()), placementByRosterId.get(roster.roster_id())))
+                .map(roster -> toTeamSummary(
+                        roster, usersById.get(roster.owner_id()),
+                        placementByRosterId.get(roster.roster_id()),
+                        roster.roster_id().equals(toiletBowlChampionRosterId)
+                ))
                 .sorted(
                         Comparator.comparingInt(TeamSummary::wins).reversed()
                                 .thenComparing(Comparator.comparingDouble(TeamSummary::pointsFor).reversed())
@@ -89,7 +94,7 @@ public class SeasonDataService {
         );
     }
 
-    private TeamSummary toTeamSummary(SleeperRoster roster, SleeperUser owner, Integer playoffPlacement) {
+    private TeamSummary toTeamSummary(SleeperRoster roster, SleeperUser owner, Integer playoffPlacement, boolean toiletBowlChamp) {
         var settings = roster.settings();
         String teamName = owner != null ? owner.teamName() : "Roster " + roster.roster_id();
         String avatarUrl = owner != null && owner.avatar() != null
@@ -108,7 +113,8 @@ public class SeasonDataService {
                 settings != null ? settings.pointsFor() : 0,
                 settings != null ? settings.pointsAgainst() : 0,
                 false, // boughtIn is stamped in by LeagueService, which knows family type + season; this layer doesn't
-                playoffPlacement
+                playoffPlacement,
+                toiletBowlChamp
         );
     }
 
@@ -116,27 +122,33 @@ public class SeasonDataService {
         return new TeamSummary(
                 team.ownerUserId(), team.ownerDisplayName(), team.teamName(), team.avatarUrl(), rank,
                 team.wins(), team.losses(), team.ties(), team.pointsFor(), team.pointsAgainst(), team.boughtIn(),
-                team.playoffPlacement()
+                team.playoffPlacement(), team.toiletBowlChamp()
         );
     }
 
     /**
-     * Maps roster_id -> final playoff standing (1 = champion), derived from the placement-deciding
-     * matchups (those with a non-null {@code p}) in the winners + losers ("toilet bowl") brackets.
-     * A matchup's winner finishes in place p, its loser in place p+1. Empty (not every roster_id
-     * present) for leagues with no playoffs yet/at all — e.g. Pick'em, or a season still in progress.
+     * Maps roster_id -> final standing in the main playoff bracket (1 = champion), derived from
+     * the winners_bracket's placement-deciding matchups (those with a non-null {@code p}): a
+     * matchup's winner finishes in place p, its loser in place p+1. Deliberately winners_bracket
+     * only — the "toilet bowl" consolation bracket's own placement games use a locally-restarted
+     * numbering that doesn't extend this same ranking (see fetchToiletBowlChampion). Empty (not
+     * every roster_id present) for leagues with no playoffs yet/at all — e.g. Pick'em, or a
+     * season still in progress.
      */
     private Map<Integer, Integer> fetchPlayoffPlacements(String leagueId) {
         try {
             Map<Integer, Integer> placements = new HashMap<>();
-            addPlacements(placements, sleeperClient.getWinnersBracket(leagueId), 0);
-            // Sleeper numbers the losers ("toilet bowl") bracket's own placement games locally,
-            // starting back at p:1 rather than continuing from the winners bracket — confirmed
-            // against live data (a 10-team, 6-playoff-team season had both brackets independently
-            // using p:1/p:3). Offset by how many placements the winners bracket already claimed so
-            // the two brackets produce one contiguous ranking instead of colliding, e.g. winners
-            // bracket claims 1..6, so the losers bracket's local p:1/p:3 become 7..10.
-            addPlacements(placements, sleeperClient.getLosersBracket(leagueId), placements.size());
+            for (SleeperBracketMatchup matchup : sleeperClient.getWinnersBracket(leagueId)) {
+                if (matchup.p() == null) {
+                    continue;
+                }
+                if (matchup.w() != null) {
+                    placements.put(matchup.w(), matchup.p());
+                }
+                if (matchup.l() != null) {
+                    placements.put(matchup.l(), matchup.p() + 1);
+                }
+            }
             return placements;
         } catch (RuntimeException e) {
             // Bracket placement is a nice-to-have for badges — don't fail the whole season fetch over it.
@@ -144,18 +156,22 @@ public class SeasonDataService {
         }
     }
 
-    private static void addPlacements(Map<Integer, Integer> placements, List<SleeperBracketMatchup> bracket, int placementOffset) {
-        for (SleeperBracketMatchup matchup : bracket) {
-            if (matchup.p() == null) {
-                continue;
-            }
-            int placement = matchup.p() + placementOffset;
-            if (matchup.w() != null) {
-                placements.put(matchup.w(), placement);
-            }
-            if (matchup.l() != null) {
-                placements.put(matchup.l(), placement + 1);
-            }
+    /**
+     * The roster_id that won the "toilet bowl" — the losers_bracket's own deciding (lowest-p)
+     * matchup. A dubious-honor title for a team that was bad enough to be in the consolation
+     * bracket at all; who "wins" it doesn't correspond to any single slot in the main bracket's
+     * 1..N placement numbering above, so it's tracked separately rather than folded into that.
+     * Null if there's no losers_bracket data (no playoffs yet/at all for this league).
+     */
+    private Integer fetchToiletBowlChampion(String leagueId) {
+        try {
+            return sleeperClient.getLosersBracket(leagueId).stream()
+                    .filter(matchup -> matchup.p() != null && matchup.w() != null)
+                    .min(Comparator.comparingInt(SleeperBracketMatchup::p))
+                    .map(SleeperBracketMatchup::w)
+                    .orElse(null);
+        } catch (RuntimeException e) {
+            return null;
         }
     }
 

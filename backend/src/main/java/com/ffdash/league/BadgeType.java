@@ -16,7 +16,7 @@ public enum BadgeType {
     TOP_SCORER("Top Scorer", BadgeScope.FANTASY, "Scored the most total points of any team in a completed season."),
     FOUNDING_MEMBER("Founding Member", BadgeScope.ALL, "Played in a league's very first configured season."),
     TOP_3("Top 3 Finish", BadgeScope.ALL, "Finished a season ranked in the top 3"),
-    TOILET_CHAMP("Toilet Bowl Champ", BadgeScope.FANTASY, "Finished a season in last place"),
+    TOILET_CHAMP("Toilet Bowl Champ", BadgeScope.FANTASY, "Won the toilet bowl — the playoff bracket's consolation bracket for non-playoff teams."),
     PICKINATOR("Ultimate Pickinator", BadgeScope.PICKEM, "Finished a Pick'em season in first place"),
     // Not yet earnable: needs a season's total roster-transaction count per team, which Sleeper only
     // exposes via a per-round transactions endpoint (~15-18 calls per completed season) — deferred
