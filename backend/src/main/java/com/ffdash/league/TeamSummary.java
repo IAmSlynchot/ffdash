@@ -29,6 +29,9 @@ import java.util.List;
  *                      corresponds to week pickemWeeks.get(i). A null element means no data for
  *                      that week (joined late, or not yet played), distinct from 0.0 (played,
  *                      scored zero). Empty for FANTASY.
+ * @param coManagers Other Sleeper users with edit access to this same roster (Sleeper's
+ *                    "co-owner" concept), in addition to the primary owner above. Usually
+ *                    empty — most rosters have exactly one manager.
  */
 public record TeamSummary(
         String ownerUserId,
@@ -44,6 +47,10 @@ public record TeamSummary(
         boolean boughtIn,
         Integer playoffPlacement,
         boolean toiletBowlChamp,
-        List<Double> weeklyScores
+        List<Double> weeklyScores,
+        List<CoManager> coManagers
 ) {
+    /** One co-manager of a TeamSummary's roster — same identity shape as the primary owner fields. */
+    public record CoManager(String userId, String displayName, String avatarUrl) {
+    }
 }

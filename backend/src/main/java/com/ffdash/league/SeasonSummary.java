@@ -8,6 +8,8 @@ import java.util.List;
  * @param pickemWeeks Pick'em only: the week numbers this season has weeklyScores columns for,
  *                     ascending (e.g. [1..18]) — gives every team's TeamSummary.weeklyScores an
  *                     unambiguous index-to-week mapping. Empty for FANTASY seasons.
+ * @param bracket FANTASY only: this season's playoff brackets. See SeasonBracket for when it's
+ *                empty (Pick'em, or playoffs not yet started).
  */
 public record SeasonSummary(
         String leagueId,
@@ -16,6 +18,7 @@ public record SeasonSummary(
         String status,
         int totalRosters,
         List<TeamSummary> teams,
-        List<Integer> pickemWeeks
+        List<Integer> pickemWeeks,
+        SeasonBracket bracket
 ) {
 }

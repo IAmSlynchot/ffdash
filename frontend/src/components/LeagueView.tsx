@@ -2,6 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { aggregateAllSeasons, fetchFamilyHistory, type SeasonSummary } from '../api/leagues'
 import { useApiData } from '../hooks/useApiData'
 import LoadingStatus from './LoadingStatus'
+import PlayoffBrackets from './PlayoffBrackets'
 
 interface LeagueViewProps {
   leagueKey: string
@@ -101,6 +102,17 @@ export default function LeagueView({ leagueKey }: LeagueViewProps) {
                       {team.teamName}
                     </>
                   )}
+                  {team.coManagers.length > 0 && (
+                    <span className="co-managers">
+                      w/{' '}
+                      {team.coManagers.map((co, i) => (
+                        <span key={co.userId}>
+                          {i > 0 && ', '}
+                          <Link to={`/managers/${co.userId}`}>{co.displayName}</Link>
+                        </span>
+                      ))}
+                    </span>
+                  )}
                   {isPickem && team.boughtIn && (
                     <span className="buyin-badge" title="Paid the buy-in — eligible for prize money">
                       Buy-in
@@ -131,6 +143,8 @@ export default function LeagueView({ leagueKey }: LeagueViewProps) {
           </tbody>
         </table>
       </div>
+
+      {!isPickem && <PlayoffBrackets bracket={season.bracket} />}
     </div>
   )
 }

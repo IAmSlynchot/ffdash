@@ -13,6 +13,12 @@ export interface LeagueFamilyRef {
   displayName: string
 }
 
+export interface CoManager {
+  userId: string
+  displayName: string
+  avatarUrl: string | null
+}
+
 export interface TeamSummary {
   ownerUserId: string | null
   /** The owner's stable Sleeper username — distinct from teamName, which is a per-season nickname. */
@@ -34,6 +40,31 @@ export interface TeamSummary {
    * yet played), distinct from 0 (played, scored zero). Empty for FANTASY.
    */
   weeklyScores: (number | null)[]
+  /** Other Sleeper users with edit access to this same roster, in addition to the primary owner. Usually empty. */
+  coManagers: CoManager[]
+}
+
+export interface BracketTeam {
+  ownerUserId: string | null
+  teamName: string
+  avatarUrl: string | null
+  /** Whether this team won this specific matchup. Only meaningful once the matchup's been played. */
+  winner: boolean
+}
+
+export interface BracketMatchup {
+  round: number
+  matchupId: number
+  /** When set, this matchup decides a final standing: winner finishes here, loser finishes here + 1. */
+  placement: number | null
+  /** null when this slot isn't determined yet — fed by a later round of a matchup not yet played. */
+  team1: BracketTeam | null
+  team2: BracketTeam | null
+}
+
+export interface SeasonBracket {
+  winnersBracket: BracketMatchup[]
+  toiletBowlBracket: BracketMatchup[]
 }
 
 export interface SeasonSummary {
@@ -45,6 +76,8 @@ export interface SeasonSummary {
   teams: TeamSummary[]
   /** Pick'em only: the week numbers this season has weeklyScores columns for, ascending. Empty for FANTASY. */
   pickemWeeks: number[]
+  /** FANTASY only: both brackets empty when there's nothing to show (Pick'em, or playoffs not yet started). */
+  bracket: SeasonBracket
 }
 
 export type LeagueType = 'FANTASY' | 'PICKEM'
@@ -63,6 +96,8 @@ export interface SeasonResult {
   season: string
   status: string
   rank: number
+  /** Whether this person held this season's team as a co-manager rather than as its primary owner. */
+  coManager: boolean
 }
 
 export type BadgeType =
@@ -140,6 +175,7 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
     ownerDisplayName: string | null
     teamName: string
     avatarUrl: string | null
+    coManagers: CoManager[]
     latestSeason: string
     wins: number
     losses: number
@@ -161,6 +197,7 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
         ownerDisplayName: team.ownerDisplayName,
         teamName: team.teamName,
         avatarUrl: team.avatarUrl,
+        coManagers: team.coManagers,
         latestSeason: season.season,
         wins: 0,
         losses: 0,
@@ -173,6 +210,7 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
         acc.ownerDisplayName = team.ownerDisplayName
         acc.teamName = team.teamName
         acc.avatarUrl = team.avatarUrl
+        acc.coManagers = team.coManagers
         acc.latestSeason = season.season
       }
 
@@ -193,6 +231,7 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
       ownerDisplayName: acc.ownerDisplayName,
       teamName: acc.teamName,
       avatarUrl: acc.avatarUrl,
+      coManagers: acc.coManagers,
       rank: i + 1,
       wins: acc.wins,
       losses: acc.losses,
@@ -215,5 +254,7 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
     totalRosters: teams.length,
     teams,
     pickemWeeks: [],
+    // A combined "All" view has no single season's playoffs to show a bracket for.
+    bracket: { winnersBracket: [], toiletBowlBracket: [] },
   }
 }

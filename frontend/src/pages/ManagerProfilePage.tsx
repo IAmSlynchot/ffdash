@@ -31,10 +31,18 @@ export default function ManagerProfilePage() {
     return <p className="status-message">Manager not found.</p>
   }
 
-  // Leagues this owner is part of, deduped from their per-season results.
+  // Leagues this owner is part of, deduped from their per-season results. Flagged as
+  // co-managed only when every season they've had in that league was as a co-manager
+  // (never the team's primary owner) — otherwise it's their own team, full stop.
   const leagues = Array.from(
-    new Map(owner.seasonResults.map((r) => [r.leagueFamilyKey, r.leagueFamilyDisplayName])).entries(),
-  )
+    new Map(
+      owner.seasonResults.map((r) => [r.leagueFamilyKey, r.leagueFamilyDisplayName] as const),
+    ).entries(),
+  ).map(([key, displayName]) => ({
+    key,
+    displayName,
+    coManagerOnly: owner.seasonResults.filter((r) => r.leagueFamilyKey === key).every((r) => r.coManager),
+  }))
 
   return (
     <div className="manager-profile">
@@ -47,9 +55,10 @@ export default function ManagerProfilePage() {
         <section className="card">
           <h3 className="card-title">Leagues</h3>
           <ul className="manager-league-list">
-            {leagues.map(([key, displayName]) => (
+            {leagues.map(({ key, displayName, coManagerOnly }) => (
               <li key={key}>
                 <Link to={`/leagues/${key}`}>{displayName}</Link>
+                {coManagerOnly && <span className="co-manager-tag"> (co-manager)</span>}
               </li>
             ))}
           </ul>

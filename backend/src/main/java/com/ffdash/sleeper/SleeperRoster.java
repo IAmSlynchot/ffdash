@@ -2,6 +2,7 @@ package com.ffdash.sleeper;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -13,13 +14,18 @@ import java.util.Map;
  * @param metadata Null for a fantasy roster, and also null for a Pick'em roster in a season that
  *                 hasn't started yet (confirmed live: every roster's metadata is null before week
  *                 1 is played). Never assume present.
+ * @param co_owners Other Sleeper user ids with edit access to this roster, in addition to
+ *                   owner_id — confirmed live (Depot League). Null/absent when there are none.
+ *                   Every co-owner is still a member of the league, so it's always resolvable
+ *                   against the same /users response used for the primary owner.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SleeperRoster(
         Integer roster_id,
         String owner_id,
         RosterSettings settings,
-        RosterMetadata metadata
+        RosterMetadata metadata,
+        List<String> co_owners
 ) {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record RosterSettings(

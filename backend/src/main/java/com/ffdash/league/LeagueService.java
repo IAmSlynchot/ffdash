@@ -64,12 +64,12 @@ public class LeagueService {
                 .flatMap(family -> family.seasons().stream()
                         .flatMap(seasonConfig -> fetchSeason(family, seasonConfig).stream())
                         .flatMap(season -> season.teams().stream()
-                                .filter(team -> team.ownerUserId() != null)
-                                .map(team -> new OwnerSeasonEntry(family, season, team))))
+                                .flatMap(team -> managersOf(team).stream()
+                                        .map(manager -> new OwnerSeasonEntry(family, season, team, manager)))))
                 .toList();
 
         Map<String, List<OwnerSeasonEntry>> byOwner = entries.stream()
-                .collect(Collectors.groupingBy(e -> e.team().ownerUserId()));
+                .collect(Collectors.groupingBy(e -> e.manager().userId()));
 
         return byOwner.values().stream()
                 .map(this::toOwnerCareerSummary)
@@ -101,9 +101,11 @@ public class LeagueService {
             }
         }
 
-        // Most recent season's owner info wins, so avatar stays current. displayName is
-        // the owner's stable Sleeper username (not a team nickname, which changes yearly
-        // and per-league) — that's what identifies the person across the whole app.
+        // Most recent season's manager info wins, so avatar stays current. displayName is
+        // the person's stable Sleeper username (not a team nickname, which changes yearly
+        // and per-league) — that's what identifies the person across the whole app. Sourced
+        // from ManagerIdentity, not TeamSummary's owner fields — for a co-manager entry those
+        // describe the team's primary owner, a different person.
         OwnerSeasonEntry mostRecent = ownerEntries.stream()
                 .max(Comparator.comparing(e -> e.season().season()))
                 .orElseThrow();
@@ -114,15 +116,16 @@ public class LeagueService {
                         e.family().displayName(),
                         e.season().season(),
                         e.season().status(),
-                        e.team().rank()
+                        e.team().rank(),
+                        !e.manager().userId().equals(e.team().ownerUserId())
                 ))
                 .sorted(Comparator.comparing(SeasonResult::season).reversed())
                 .toList();
 
         return new OwnerCareerSummary(
-                mostRecent.team().ownerUserId(),
-                mostRecent.team().ownerDisplayName(),
-                mostRecent.team().avatarUrl(),
+                mostRecent.manager().userId(),
+                mostRecent.manager().displayName(),
+                mostRecent.manager().avatarUrl(),
                 wins,
                 losses,
                 ties,
@@ -222,6 +225,24 @@ public class LeagueService {
                 .add(new BadgeEarning(e.family().key(), e.season().season(), e.family().displayName() + " " + e.season().season()));
     }
 
+    /**
+     * Every person who managed this team — its primary owner (if any; a Pick'em/fantasy roster
+     * can be ownerless, see TeamSummary), plus each of its co-managers. Used to fan a single
+     * TeamSummary out into one OwnerSeasonEntry per person, so a co-manager gets full credit
+     * (career totals, badges, this season in their Leagues list) alongside the primary owner
+     * rather than only the owner being tracked.
+     */
+    private static List<ManagerIdentity> managersOf(TeamSummary team) {
+        List<ManagerIdentity> managers = new ArrayList<>();
+        if (team.ownerUserId() != null) {
+            managers.add(new ManagerIdentity(team.ownerUserId(), team.ownerDisplayName(), team.avatarUrl()));
+        }
+        for (TeamSummary.CoManager coManager : team.coManagers()) {
+            managers.add(new ManagerIdentity(coManager.userId(), coManager.displayName(), coManager.avatarUrl()));
+        }
+        return managers;
+    }
+
     private LeagueFamilyConfig findFamily(String key) {
         return leaguesProperties.getLeagues().stream()
                 .filter(f -> f.key().equals(key))
@@ -255,13 +276,24 @@ public class LeagueService {
                         team.ownerUserId(), team.ownerDisplayName(), team.teamName(), team.avatarUrl(), team.rank(),
                         team.wins(), team.losses(), team.ties(), team.pointsFor(), team.pointsAgainst(),
                         pickemProperties.hasPaid(seasonConfig.season(), team.ownerDisplayName()),
-                        team.playoffPlacement(), team.toiletBowlChamp(), team.weeklyScores()
+                        team.playoffPlacement(), team.toiletBowlChamp(), team.weeklyScores(), team.coManagers()
                 ))
                 .toList();
         return new SeasonSummary(summary.leagueId(), summary.season(), summary.name(), summary.status(),
-                summary.totalRosters(), teams, summary.pickemWeeks());
+                summary.totalRosters(), teams, summary.pickemWeeks(), summary.bracket());
     }
 
-    private record OwnerSeasonEntry(LeagueFamilyConfig family, SeasonSummary season, TeamSummary team) {
+    /**
+     * One (family, season, team, person) tuple — team/season carry that team's actual result,
+     * manager identifies which person this entry is for. A team with a co-manager produces two
+     * entries, one per person, both pointing at the same team/season so both get credit for its
+     * result; manager is what tells them apart (and is who owns this entry once grouped by
+     * userId in getOwnerCareerSummaries).
+     */
+    private record OwnerSeasonEntry(LeagueFamilyConfig family, SeasonSummary season, TeamSummary team, ManagerIdentity manager) {
+    }
+
+    /** A person's identity as of one season — same shape as TeamSummary's owner fields, but always about the person this entry is for, not necessarily the team's primary owner. */
+    private record ManagerIdentity(String userId, String displayName, String avatarUrl) {
     }
 }
