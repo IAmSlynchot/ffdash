@@ -39,4 +39,22 @@ public class SleeperClient {
                 .body(new ParameterizedTypeReference<List<SleeperUser>>() {
                 });
     }
+
+    /** The playoff bracket. Empty (not an error) for a league with no playoffs yet/ever, e.g. Pick'em. */
+    public List<SleeperBracketMatchup> getWinnersBracket(String leagueId) {
+        return restClient.get()
+                .uri("/league/{leagueId}/winners_bracket", leagueId)
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<SleeperBracketMatchup>>() {
+                });
+    }
+
+    /** The "toilet bowl" consolation bracket among non-playoff teams. Empty just like getWinnersBracket. */
+    public List<SleeperBracketMatchup> getLosersBracket(String leagueId) {
+        return restClient.get()
+                .uri("/league/{leagueId}/losers_bracket", leagueId)
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<SleeperBracketMatchup>>() {
+                });
+    }
 }

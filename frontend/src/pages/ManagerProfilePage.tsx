@@ -1,7 +1,18 @@
 import { Link, useParams } from 'react-router-dom'
-import { fetchOwnerCareerSummaries } from '../api/leagues'
+import { fetchOwnerCareerSummaries, type EarnedBadge } from '../api/leagues'
 import { useApiData } from '../hooks/useApiData'
 import LoadingStatus from '../components/LoadingStatus'
+
+const BADGE_GLYPH: Record<EarnedBadge['type'], string> = {
+  CHAMPION: '🏆',
+  TOP_SCORER: '🔥',
+  FOUNDING_MEMBER: '🌱',
+  TOP_3: '🥉',
+  TOILET_CHAMP: '🚽',
+  PICKINATOR: '🎯',
+  MICRO_MANAGER: '🔬',
+  ADVERSITY_SPECIALIST: '🛡️',
+}
 
 export default function ManagerProfilePage() {
   const { userId } = useParams<{ userId: string }>()
@@ -32,14 +43,59 @@ export default function ManagerProfilePage() {
         <h2>{owner.displayName}</h2>
       </header>
 
-      <h3>Leagues</h3>
-      <ul className="manager-league-list">
-        {leagues.map(([key, displayName]) => (
-          <li key={key}>
-            <Link to={`/leagues/${key}`}>{displayName}</Link>
-          </li>
-        ))}
-      </ul>
+      <div className="profile-cards">
+        <section className="card">
+          <h3 className="card-title">Leagues</h3>
+          <ul className="manager-league-list">
+            {leagues.map(([key, displayName]) => (
+              <li key={key}>
+                <Link to={`/leagues/${key}`}>{displayName}</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="card">
+          <h3 className="card-title">Badges</h3>
+          {owner.badges.length === 0 ? (
+            <p className="card-empty">No badges earned yet.</p>
+          ) : (
+            <ul className="badge-grid">
+              {owner.badges.map((badge) => {
+                const [mostRecent, ...older] = badge.earnings
+                return (
+                  <li key={badge.type} className="badge-item">
+                    <span className="badge-glyph" aria-hidden="true">
+                      {BADGE_GLYPH[badge.type]}
+                    </span>
+                    <div className="badge-text">
+                      <span className="badge-title">
+                        {badge.title}
+                        {older.length > 0 && <span className="badge-count">×{badge.earnings.length}</span>}
+                      </span>
+                      {older.length === 0 ? (
+                        <span className="badge-subtitle">{mostRecent.subtitle}</span>
+                      ) : (
+                        <details className="badge-earnings">
+                          <summary>
+                            <span className="badge-subtitle">{mostRecent.subtitle}</span>
+                            <span className="badge-more">+{older.length} more</span>
+                          </summary>
+                          <ul className="badge-earnings-list">
+                            {older.map((earning) => (
+                              <li key={`${earning.leagueFamilyKey}-${earning.season}`}>{earning.subtitle}</li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
+      </div>
     </div>
   )
 }

@@ -20,6 +20,8 @@ public record OwnerCareerSummary(
         double combinedPointsFor,
         double combinedPointsAgainst,
         int topThreeFinishes,
-        List<SeasonResult> seasonResults
+        List<SeasonResult> seasonResults,
+        /** Achievement badges this owner has earned, newest season first. See BadgeType/EarnedBadge. */
+        List<EarnedBadge> badges
 ) {
 }

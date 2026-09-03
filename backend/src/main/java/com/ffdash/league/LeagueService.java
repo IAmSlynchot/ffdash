@@ -9,10 +9,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 
 /**
@@ -126,8 +129,110 @@ public class LeagueService {
                 pointsFor,
                 pointsAgainst,
                 topThreeFinishes,
-                seasonResults
+                seasonResults,
+                computeBadges(ownerEntries)
         );
+    }
+
+    /**
+     * Achievement badges this owner has earned (see BadgeType for eligibility rules and
+     * BadgeScope for which league type(s) each one can apply to), computed from the same
+     * per-owner entries used above. An owner can earn the same badge type in more than one
+     * league-year; rather than repeating the badge once per year, each BadgeType appears at
+     * most once, carrying every year it was earned (EarnedBadge.earnings) so the profile
+     * stays compact without losing any of that history.
+     */
+    private List<EarnedBadge> computeBadges(List<OwnerSeasonEntry> ownerEntries) {
+        Map<BadgeType, List<BadgeEarning>> earningsByType = new EnumMap<>(BadgeType.class);
+
+        for (OwnerSeasonEntry e : ownerEntries) {
+            boolean seasonComplete = COMPLETE_STATUS.equals(e.season().status());
+            for (BadgeType type : BadgeType.values()) {
+                if (type.scope().appliesTo(e.family().type()) && isEligible(type, e, seasonComplete)) {
+                    addEarning(earningsByType, type, e);
+                }
+            }
+        }
+
+        // Badge types with the most recent earning show first.
+        return earningsByType.entrySet().stream()
+                .map(entry -> {
+                    BadgeType type = entry.getKey();
+                    List<BadgeEarning> earnings = entry.getValue().stream()
+                            .sorted(Comparator.comparing(BadgeEarning::season).reversed())
+                            .toList();
+                    return new EarnedBadge(type, type.title(), type.description(), earnings);
+                })
+                .sorted(Comparator.comparing((EarnedBadge b) -> b.earnings().get(0).season()).reversed())
+                .toList();
+    }
+
+    /**
+     * Per-type eligibility for one (owner, family, season) entry. Fantasy placement badges
+     * (CHAMPION, TOP_3, TOILET_CHAMP) key off that season's playoff/toilet-bowl bracket
+     * (TeamSummary.playoffPlacement) rather than the regular-season standings rank — Pick'em
+     * has no playoffs, so its placement badges (TOP_3, PICKINATOR) use rank instead.
+     */
+    private static boolean isEligible(BadgeType type, OwnerSeasonEntry e, boolean seasonComplete) {
+        return switch (type) {
+            // Founding Member is the only badge not gated on season completion — it's about
+            // membership, not a performance placement.
+            case FOUNDING_MEMBER -> isFoundingSeason(e);
+            case CHAMPION -> seasonComplete && isPlacement(e, 1);
+            case TOP_3 -> seasonComplete && isTopThree(e);
+            case TOILET_CHAMP -> seasonComplete && isLastPlace(e);
+            case PICKINATOR -> seasonComplete && e.team().rank() == 1;
+            case TOP_SCORER -> seasonComplete && e.team().pointsFor() == maxAmong(e, TeamSummary::pointsFor);
+            case ADVERSITY_SPECIALIST -> seasonComplete && e.team().pointsAgainst() == maxAmong(e, TeamSummary::pointsAgainst);
+            // Not yet computed — see BadgeType.MICRO_MANAGER's javadoc for why.
+            case MICRO_MANAGER -> false;
+        };
+    }
+
+    private static boolean isFoundingSeason(OwnerSeasonEntry e) {
+        String foundingSeason = e.family().seasons().stream()
+                .map(SeasonConfig::season)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
+        return e.season().season().equals(foundingSeason);
+    }
+
+    private static boolean isPlacement(OwnerSeasonEntry e, int placement) {
+        return e.team().playoffPlacement() != null && e.team().playoffPlacement() == placement;
+    }
+
+    private static boolean isTopThree(OwnerSeasonEntry e) {
+        return switch (e.family().type()) {
+            case FANTASY -> e.team().playoffPlacement() != null && e.team().playoffPlacement() <= TOP_FINISH_THRESHOLD;
+            case PICKEM -> e.team().rank() <= TOP_FINISH_THRESHOLD;
+        };
+    }
+
+    /** Worst playoffPlacement among that season's teams — the "toilet bowl" bracket's own last place. */
+    private static boolean isLastPlace(OwnerSeasonEntry e) {
+        Integer placement = e.team().playoffPlacement();
+        if (placement == null) {
+            return false;
+        }
+        int worst = e.season().teams().stream()
+                .map(TeamSummary::playoffPlacement)
+                .filter(p -> p != null)
+                .mapToInt(Integer::intValue)
+                .max()
+                .orElse(Integer.MIN_VALUE);
+        return placement == worst;
+    }
+
+    private static double maxAmong(OwnerSeasonEntry e, ToDoubleFunction<TeamSummary> metric) {
+        return e.season().teams().stream()
+                .mapToDouble(metric)
+                .max()
+                .orElse(Double.NEGATIVE_INFINITY);
+    }
+
+    private static void addEarning(Map<BadgeType, List<BadgeEarning>> earningsByType, BadgeType type, OwnerSeasonEntry e) {
+        earningsByType.computeIfAbsent(type, t -> new ArrayList<>())
+                .add(new BadgeEarning(e.family().key(), e.season().season(), e.family().displayName() + " " + e.season().season()));
     }
 
     private LeagueFamilyConfig findFamily(String key) {
@@ -162,7 +267,8 @@ public class LeagueService {
                 .map(team -> new TeamSummary(
                         team.ownerUserId(), team.ownerDisplayName(), team.teamName(), team.avatarUrl(), team.rank(),
                         team.wins(), team.losses(), team.ties(), team.pointsFor(), team.pointsAgainst(),
-                        pickemProperties.hasPaid(seasonConfig.season(), team.ownerDisplayName())
+                        pickemProperties.hasPaid(seasonConfig.season(), team.ownerDisplayName()),
+                        team.playoffPlacement()
                 ))
                 .toList();
         return new SeasonSummary(summary.leagueId(), summary.season(), summary.name(), summary.status(), summary.totalRosters(), teams);

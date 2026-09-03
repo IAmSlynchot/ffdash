@@ -56,6 +56,32 @@ export interface SeasonResult {
   rank: number
 }
 
+export type BadgeType =
+  | 'CHAMPION'
+  | 'TOP_SCORER'
+  | 'FOUNDING_MEMBER'
+  | 'TOP_3'
+  | 'TOILET_CHAMP'
+  | 'PICKINATOR'
+  | 'MICRO_MANAGER'
+  | 'ADVERSITY_SPECIALIST'
+
+export interface BadgeEarning {
+  leagueFamilyKey: string
+  season: string
+  /** Pre-formatted, e.g. "The Depot League 2024". */
+  subtitle: string
+}
+
+/** One badge type an owner has earned, consolidated: appears once even if earned in multiple league-years. */
+export interface EarnedBadge {
+  type: BadgeType
+  title: string
+  description: string
+  /** Every league-year this badge was earned in, newest season first. */
+  earnings: BadgeEarning[]
+}
+
 export interface OwnerCareerSummary {
   userId: string
   displayName: string
@@ -68,6 +94,8 @@ export interface OwnerCareerSummary {
   topThreeFinishes: number
   /** Newest season first. */
   seasonResults: SeasonResult[]
+  /** Newest season first. An owner can earn the same badge type more than once, for different league-years. */
+  badges: EarnedBadge[]
 }
 
 async function fetchJson<T>(url: string): Promise<T> {

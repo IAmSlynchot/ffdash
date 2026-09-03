@@ -1,6 +1,7 @@
 package com.ffdash.league;
 
 import com.ffdash.config.LeaguesProperties;
+import com.ffdash.sleeper.SleeperBracketMatchup;
 import com.ffdash.sleeper.SleeperClient;
 import com.ffdash.sleeper.SleeperLeague;
 import com.ffdash.sleeper.SleeperRoster;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -57,12 +59,13 @@ public class SeasonDataService {
         SleeperLeague league = sleeperClient.getLeague(leagueId);
         List<SleeperRoster> rosters = sleeperClient.getRosters(leagueId);
         List<SleeperUser> users = sleeperClient.getUsers(leagueId);
+        Map<Integer, Integer> placementByRosterId = fetchPlayoffPlacements(leagueId);
 
         Map<String, SleeperUser> usersById = users.stream()
                 .collect(Collectors.toMap(SleeperUser::user_id, Function.identity()));
 
         List<TeamSummary> ranked = rosters.stream()
-                .map(roster -> toTeamSummary(roster, usersById.get(roster.owner_id())))
+                .map(roster -> toTeamSummary(roster, usersById.get(roster.owner_id()), placementByRosterId.get(roster.roster_id())))
                 .sorted(
                         Comparator.comparingInt(TeamSummary::wins).reversed()
                                 .thenComparing(Comparator.comparingDouble(TeamSummary::pointsFor).reversed())
@@ -86,7 +89,7 @@ public class SeasonDataService {
         );
     }
 
-    private TeamSummary toTeamSummary(SleeperRoster roster, SleeperUser owner) {
+    private TeamSummary toTeamSummary(SleeperRoster roster, SleeperUser owner, Integer playoffPlacement) {
         var settings = roster.settings();
         String teamName = owner != null ? owner.teamName() : "Roster " + roster.roster_id();
         String avatarUrl = owner != null && owner.avatar() != null
@@ -104,15 +107,56 @@ public class SeasonDataService {
                 settings != null && settings.ties() != null ? settings.ties() : 0,
                 settings != null ? settings.pointsFor() : 0,
                 settings != null ? settings.pointsAgainst() : 0,
-                false // boughtIn is stamped in by LeagueService, which knows family type + season; this layer doesn't
+                false, // boughtIn is stamped in by LeagueService, which knows family type + season; this layer doesn't
+                playoffPlacement
         );
     }
 
     private static TeamSummary withRank(TeamSummary team, int rank) {
         return new TeamSummary(
                 team.ownerUserId(), team.ownerDisplayName(), team.teamName(), team.avatarUrl(), rank,
-                team.wins(), team.losses(), team.ties(), team.pointsFor(), team.pointsAgainst(), team.boughtIn()
+                team.wins(), team.losses(), team.ties(), team.pointsFor(), team.pointsAgainst(), team.boughtIn(),
+                team.playoffPlacement()
         );
+    }
+
+    /**
+     * Maps roster_id -> final playoff standing (1 = champion), derived from the placement-deciding
+     * matchups (those with a non-null {@code p}) in the winners + losers ("toilet bowl") brackets.
+     * A matchup's winner finishes in place p, its loser in place p+1. Empty (not every roster_id
+     * present) for leagues with no playoffs yet/at all — e.g. Pick'em, or a season still in progress.
+     */
+    private Map<Integer, Integer> fetchPlayoffPlacements(String leagueId) {
+        try {
+            Map<Integer, Integer> placements = new HashMap<>();
+            addPlacements(placements, sleeperClient.getWinnersBracket(leagueId), 0);
+            // Sleeper numbers the losers ("toilet bowl") bracket's own placement games locally,
+            // starting back at p:1 rather than continuing from the winners bracket — confirmed
+            // against live data (a 10-team, 6-playoff-team season had both brackets independently
+            // using p:1/p:3). Offset by how many placements the winners bracket already claimed so
+            // the two brackets produce one contiguous ranking instead of colliding, e.g. winners
+            // bracket claims 1..6, so the losers bracket's local p:1/p:3 become 7..10.
+            addPlacements(placements, sleeperClient.getLosersBracket(leagueId), placements.size());
+            return placements;
+        } catch (RuntimeException e) {
+            // Bracket placement is a nice-to-have for badges — don't fail the whole season fetch over it.
+            return Map.of();
+        }
+    }
+
+    private static void addPlacements(Map<Integer, Integer> placements, List<SleeperBracketMatchup> bracket, int placementOffset) {
+        for (SleeperBracketMatchup matchup : bracket) {
+            if (matchup.p() == null) {
+                continue;
+            }
+            int placement = matchup.p() + placementOffset;
+            if (matchup.w() != null) {
+                placements.put(matchup.w(), placement);
+            }
+            if (matchup.l() != null) {
+                placements.put(matchup.l(), placement + 1);
+            }
+        }
     }
 
     private record CachedEntry(SeasonSummary summary, Instant fetchedAt) {

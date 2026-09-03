@@ -231,3 +231,125 @@
 .manager-league-list a:hover {
   text-decoration: underline;
 }
+
+.profile-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  background: var(--bg);
+}
+
+.card-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+  color: var(--text-h);
+}
+
+.card-empty {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.badge-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .badge-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.badge-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  min-width: 0;
+}
+
+.badge-glyph {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.badge-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.badge-title {
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.badge-count {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  opacity: 0.7;
+}
+
+.badge-subtitle {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.badge-earnings summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.badge-earnings summary::-webkit-details-marker {
+  display: none;
+}
+
+.badge-earnings summary::after {
+  content: '▸';
+  font-size: 10px;
+  color: var(--text);
+  transition: transform 0.15s;
+}
+
+.badge-earnings[open] summary::after {
+  transform: rotate(90deg);
+}
+
+.badge-more {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.badge-earnings-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text);
+}
