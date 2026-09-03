@@ -23,10 +23,17 @@ export interface TeamSummary {
   wins: number
   losses: number
   ties: number
+  /** FANTASY: total points scored. PICKEM: the season-total Pick'em score (sum of weeklyScores' non-null values). */
   pointsFor: number
   pointsAgainst: number
   /** Pick'em only: whether this owner paid that season's buy-in and is eligible for prize money. Always false for FANTASY leagues. */
   boughtIn: boolean
+  /**
+   * PICKEM only: this team's score for each of SeasonSummary.pickemWeeks, same length/order —
+   * index i here is week pickemWeeks[i]. null means no data for that week (joined late, or not
+   * yet played), distinct from 0 (played, scored zero). Empty for FANTASY.
+   */
+  weeklyScores: (number | null)[]
 }
 
 export interface SeasonSummary {
@@ -36,6 +43,8 @@ export interface SeasonSummary {
   status: string
   totalRosters: number
   teams: TeamSummary[]
+  /** Pick'em only: the week numbers this season has weeklyScores columns for, ascending. Empty for FANTASY. */
+  pickemWeeks: number[]
 }
 
 export type LeagueType = 'FANTASY' | 'PICKEM'
@@ -196,6 +205,9 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
       pointsFor: acc.pointsFor,
       pointsAgainst: acc.pointsAgainst,
       boughtIn: acc.boughtIn,
+      // A given week number means a different week in different years, so per-week scores can't
+      // be meaningfully combined across seasons — "All" always falls back to Total-only display.
+      weeklyScores: [],
     }))
 
   return {
@@ -205,5 +217,6 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
     status: 'combined',
     totalRosters: teams.length,
     teams,
+    pickemWeeks: [],
   }
 }

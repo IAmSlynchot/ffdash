@@ -255,10 +255,11 @@ public class LeagueService {
                         team.ownerUserId(), team.ownerDisplayName(), team.teamName(), team.avatarUrl(), team.rank(),
                         team.wins(), team.losses(), team.ties(), team.pointsFor(), team.pointsAgainst(),
                         pickemProperties.hasPaid(seasonConfig.season(), team.ownerDisplayName()),
-                        team.playoffPlacement(), team.toiletBowlChamp()
+                        team.playoffPlacement(), team.toiletBowlChamp(), team.weeklyScores()
                 ))
                 .toList();
-        return new SeasonSummary(summary.leagueId(), summary.season(), summary.name(), summary.status(), summary.totalRosters(), teams);
+        return new SeasonSummary(summary.leagueId(), summary.season(), summary.name(), summary.status(),
+                summary.totalRosters(), teams, summary.pickemWeeks());
     }
 
     private record OwnerSeasonEntry(LeagueFamilyConfig family, SeasonSummary season, TeamSummary team) {

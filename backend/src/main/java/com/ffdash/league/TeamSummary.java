@@ -1,8 +1,15 @@
 package com.ffdash.league;
 
+import java.util.List;
+
 /**
  * One team's standing within a season, ready for display.
  *
+ * @param pointsFor FANTASY: total points scored across the season, from Sleeper's roster
+ *                  settings. PICKEM: the season-total Pick'em score instead (sum of
+ *                  weeklyScores' non-null values) — reused rather than adding a separate field,
+ *                  so ranking, the TOP_3/PICKINATOR badges, and cross-season aggregation all
+ *                  work unchanged for both league types.
  * @param boughtIn Pick'em only: whether this owner paid that pool's optional
  *                 buy-in for this season (see PickemProperties) and is thus
  *                 eligible for prize money. Always false for FANTASY leagues,
@@ -17,6 +24,11 @@ package com.ffdash.league;
  *                        ranking (it's a dubious-honor title for a team that was bad enough to
  *                        be in the consolation bracket at all, decided by that bracket's own
  *                        final game, independent of how the main bracket's placements are numbered).
+ * @param weeklyScores PICKEM only: this team's score for each of that season's
+ *                      SeasonSummary.pickemWeeks entries, same length/order — so index i here
+ *                      corresponds to week pickemWeeks.get(i). A null element means no data for
+ *                      that week (joined late, or not yet played), distinct from 0.0 (played,
+ *                      scored zero). Empty for FANTASY.
  */
 public record TeamSummary(
         String ownerUserId,
@@ -31,6 +43,7 @@ public record TeamSummary(
         double pointsAgainst,
         boolean boughtIn,
         Integer playoffPlacement,
-        boolean toiletBowlChamp
+        boolean toiletBowlChamp,
+        List<Double> weeklyScores
 ) {
 }

@@ -139,10 +139,21 @@
   background: rgba(224, 82, 82, 0.1);
 }
 
+.standings-table-scroll {
+  overflow-x: auto;
+}
+
 .standings-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 15px;
+}
+
+.week-col {
+  padding-left: 6px;
+  padding-right: 6px;
+  min-width: 52px;
+  white-space: nowrap;
 }
 
 .standings-table th,

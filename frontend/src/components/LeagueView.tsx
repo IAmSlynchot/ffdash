@@ -30,6 +30,9 @@ export default function LeagueView({ leagueKey }: LeagueViewProps) {
     setSearchParams(value === currentSeason ? {} : { season: value })
   }
 
+  const isPickem = history.type === 'PICKEM'
+  const isPickemWeekly = isPickem && season.pickemWeeks.length > 0
+
   return (
     <div className="league-view">
       <div className="league-view-controls">
@@ -55,49 +58,79 @@ export default function LeagueView({ leagueKey }: LeagueViewProps) {
         </select>
       </div>
 
-      <table className="standings-table">
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th className="team-col">Team</th>
-            <th>W</th>
-            <th>L</th>
-            <th>T</th>
-            <th>Points For</th>
-            <th>Points Against</th>
-          </tr>
-        </thead>
-        <tbody>
-          {season.teams.map((team) => (
-            <tr key={team.ownerUserId ?? team.teamName}>
-              <td className="rank-cell">{team.rank}</td>
-              <td className="team-cell">
-                {team.ownerUserId ? (
-                  <Link to={`/managers/${team.ownerUserId}`} className="manager-link">
-                    {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
-                    {team.teamName}
-                  </Link>
+      <div className="standings-table-scroll">
+        <table className="standings-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th className="team-col">Team</th>
+              {isPickem ? (
+                <>
+                  <th>Total</th>
+                  {isPickemWeekly &&
+                    season.pickemWeeks.map((week) => (
+                      <th key={week} className="week-col">
+                        Wk{week}
+                      </th>
+                    ))}
+                </>
+              ) : (
+                <>
+                  <th>W</th>
+                  <th>L</th>
+                  <th>T</th>
+                  <th>Points For</th>
+                  <th>Points Against</th>
+                </>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {season.teams.map((team) => (
+              <tr key={team.ownerUserId ?? team.teamName}>
+                <td className="rank-cell">{team.rank}</td>
+                <td className="team-cell">
+                  {team.ownerUserId ? (
+                    <Link to={`/managers/${team.ownerUserId}`} className="manager-link">
+                      {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
+                      {team.teamName}
+                    </Link>
+                  ) : (
+                    <>
+                      {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
+                      {team.teamName}
+                    </>
+                  )}
+                  {isPickem && team.boughtIn && (
+                    <span className="buyin-badge" title="Paid the buy-in — eligible for prize money">
+                      Buy-in
+                    </span>
+                  )}
+                </td>
+                {isPickem ? (
+                  <>
+                    <td>{team.pointsFor.toFixed(2)}</td>
+                    {isPickemWeekly &&
+                      team.weeklyScores.map((score, i) => (
+                        <td key={season.pickemWeeks[i]} className="week-col">
+                          {score === null ? '—' : score.toFixed(2)}
+                        </td>
+                      ))}
+                  </>
                 ) : (
                   <>
-                    {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
-                    {team.teamName}
+                    <td>{team.wins}</td>
+                    <td>{team.losses}</td>
+                    <td>{team.ties}</td>
+                    <td>{team.pointsFor.toFixed(2)}</td>
+                    <td>{team.pointsAgainst.toFixed(2)}</td>
                   </>
                 )}
-                {history.type === 'PICKEM' && team.boughtIn && (
-                  <span className="buyin-badge" title="Paid the buy-in — eligible for prize money">
-                    Buy-in
-                  </span>
-                )}
-              </td>
-              <td>{team.wins}</td>
-              <td>{team.losses}</td>
-              <td>{team.ties}</td>
-              <td>{team.pointsFor.toFixed(2)}</td>
-              <td>{team.pointsAgainst.toFixed(2)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

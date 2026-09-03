@@ -10,12 +10,17 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -61,6 +66,7 @@ public class SeasonDataService {
         List<SleeperUser> users = sleeperClient.getUsers(leagueId);
         Map<Integer, Integer> placementByRosterId = fetchPlayoffPlacements(leagueId);
         Integer toiletBowlChampionRosterId = fetchToiletBowlChampion(leagueId);
+        Map<Integer, String> pickemWeeks = detectPickemWeeks(league);
 
         Map<String, SleeperUser> usersById = users.stream()
                 .collect(Collectors.toMap(SleeperUser::user_id, Function.identity()));
@@ -69,7 +75,8 @@ public class SeasonDataService {
                 .map(roster -> toTeamSummary(
                         roster, usersById.get(roster.owner_id()),
                         placementByRosterId.get(roster.roster_id()),
-                        roster.roster_id().equals(toiletBowlChampionRosterId)
+                        roster.roster_id().equals(toiletBowlChampionRosterId),
+                        pickemWeeks
                 ))
                 .sorted(
                         Comparator.comparingInt(TeamSummary::wins).reversed()
@@ -77,9 +84,10 @@ public class SeasonDataService {
                 )
                 .toList();
 
-        // 1-based placement from the sort order above — the only ranking signal
-        // Sleeper's API gives us today. Worth re-checking once real Pick'em
-        // season data exists, since its ranking semantics may not be wins/points.
+        // 1-based placement from the sort order above. For FANTASY this is wins-then-points, the
+        // only ranking signal Sleeper's API gives us. For Pick'em, wins is always 0 (no such
+        // concept there — see toTeamSummary), so this degenerates to a pure points-desc sort,
+        // which is exactly right since pointsFor holds the season-total Pick'em score in that case.
         List<TeamSummary> teams = IntStream.range(0, ranked.size())
                 .mapToObj(i -> withRank(ranked.get(i), i + 1))
                 .toList();
@@ -90,16 +98,39 @@ public class SeasonDataService {
                 league.name(),
                 league.status(),
                 league.total_rosters() == null ? teams.size() : league.total_rosters(),
-                teams
+                teams,
+                List.copyOf(pickemWeeks.keySet())
         );
     }
 
-    private TeamSummary toTeamSummary(SleeperRoster roster, SleeperUser owner, Integer playoffPlacement, boolean toiletBowlChamp) {
+    private TeamSummary toTeamSummary(SleeperRoster roster, SleeperUser owner, Integer playoffPlacement,
+                                       boolean toiletBowlChamp, Map<Integer, String> pickemWeeks) {
         var settings = roster.settings();
         String teamName = owner != null ? owner.teamName() : "Roster " + roster.roster_id();
         String avatarUrl = owner != null && owner.avatar() != null
                 ? "https://sleepercdn.com/avatars/" + owner.avatar()
                 : null;
+
+        List<Double> weeklyScores = List.of();
+        double pointsFor = settings != null ? settings.pointsFor() : 0;
+        if (!pickemWeeks.isEmpty()) {
+            Map<String, Double> pointsByLeg = roster.metadata() != null ? roster.metadata().points_by_leg() : null;
+            List<Double> scores = new ArrayList<>(pickemWeeks.size());
+            double total = 0;
+            for (String rawKey : pickemWeeks.values()) {
+                // A missing key (or metadata/points_by_leg entirely null) means no data for that
+                // week yet — null, not 0 — distinct from a stored 0.0 (played, scored zero).
+                Double weekScore = pointsByLeg != null ? pointsByLeg.get(rawKey) : null;
+                scores.add(weekScore);
+                if (weekScore != null) {
+                    total += weekScore;
+                }
+            }
+            // Collections.unmodifiableList, not List.copyOf/List.of — those reject null elements,
+            // and a null element here is meaningful (see comment above), not an oversight.
+            weeklyScores = Collections.unmodifiableList(scores);
+            pointsFor = total;
+        }
 
         return new TeamSummary(
                 owner != null ? owner.user_id() : null,
@@ -110,11 +141,12 @@ public class SeasonDataService {
                 settings != null && settings.wins() != null ? settings.wins() : 0,
                 settings != null && settings.losses() != null ? settings.losses() : 0,
                 settings != null && settings.ties() != null ? settings.ties() : 0,
-                settings != null ? settings.pointsFor() : 0,
+                pointsFor,
                 settings != null ? settings.pointsAgainst() : 0,
                 false, // boughtIn is stamped in by LeagueService, which knows family type + season; this layer doesn't
                 playoffPlacement,
-                toiletBowlChamp
+                toiletBowlChamp,
+                weeklyScores
         );
     }
 
@@ -122,8 +154,33 @@ public class SeasonDataService {
         return new TeamSummary(
                 team.ownerUserId(), team.ownerDisplayName(), team.teamName(), team.avatarUrl(), rank,
                 team.wins(), team.losses(), team.ties(), team.pointsFor(), team.pointsAgainst(), team.boughtIn(),
-                team.playoffPlacement(), team.toiletBowlChamp()
+                team.playoffPlacement(), team.toiletBowlChamp(), team.weeklyScores()
         );
+    }
+
+    private static final Pattern PICKEM_WEEK_KEY = Pattern.compile("^v1:regular:(\\d+)$");
+
+    /**
+     * Detects a Pick'em-shaped season generically from league.scoring_settings' key pattern
+     * (v1:regular:N) rather than trusting family/LeagueType from config — this service
+     * deliberately doesn't know about family, same as bracket placement above. Returns week
+     * number -> the exact raw key string Sleeper used for it (never reconstructed, so lookups
+     * into a roster's points_by_leg stay robust to any future key-format change), ordered
+     * ascending by week via TreeMap. Empty for a normal fantasy season — its scoring_settings
+     * keys are stat abbreviations (pass_td, rec, ...) that never match this pattern.
+     */
+    private static Map<Integer, String> detectPickemWeeks(SleeperLeague league) {
+        if (league.scoring_settings() == null) {
+            return Map.of();
+        }
+        Map<Integer, String> weeks = new TreeMap<>();
+        for (String key : league.scoring_settings().keySet()) {
+            Matcher matcher = PICKEM_WEEK_KEY.matcher(key);
+            if (matcher.matches()) {
+                weeks.put(Integer.parseInt(matcher.group(1)), key);
+            }
+        }
+        return weeks;
     }
 
     /**
