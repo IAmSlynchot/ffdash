@@ -66,7 +66,7 @@ export default function LeagueView({ leagueKey }: LeagueViewProps) {
               <th className="team-col">Team</th>
               {isPickem ? (
                 <>
-                  <th>Total</th>
+                  <th className="total-col">Total</th>
                   {isPickemWeekly &&
                     season.pickemWeeks.map((week) => (
                       <th key={week} className="week-col">
@@ -109,11 +109,11 @@ export default function LeagueView({ leagueKey }: LeagueViewProps) {
                 </td>
                 {isPickem ? (
                   <>
-                    <td>{team.pointsFor.toFixed(2)}</td>
+                    <td className="total-col">{team.pointsFor}</td>
                     {isPickemWeekly &&
                       team.weeklyScores.map((score, i) => (
                         <td key={season.pickemWeeks[i]} className="week-col">
-                          {score === null ? '—' : score.toFixed(2)}
+                          {score === null ? '—' : score}
                         </td>
                       ))}
                   </>

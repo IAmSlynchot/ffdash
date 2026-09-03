@@ -146,7 +146,6 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
     ties: number
     pointsFor: number
     pointsAgainst: number
-    boughtIn: boolean
   }
 
   const byOwner = new Map<string, Accumulator>()
@@ -168,7 +167,6 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
         ties: 0,
         pointsFor: 0,
         pointsAgainst: 0,
-        boughtIn: false,
       }
 
       if (isNewer) {
@@ -176,9 +174,6 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
         acc.teamName = team.teamName
         acc.avatarUrl = team.avatarUrl
         acc.latestSeason = season.season
-        // "Bought in" reflects the most recent season only — buy-ins are paid per season (see
-        // PickemProperties), so "competing for the pot" means this year, not any past year.
-        acc.boughtIn = team.boughtIn
       }
 
       acc.wins += team.wins
@@ -204,7 +199,9 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
       ties: acc.ties,
       pointsFor: acc.pointsFor,
       pointsAgainst: acc.pointsAgainst,
-      boughtIn: acc.boughtIn,
+      // Buy-ins are paid per season (see PickemProperties) — "competing for the pot" is inherently
+      // a this-year question, so it's never shown on the combined "All" view.
+      boughtIn: false,
       // A given week number means a different week in different years, so per-week scores can't
       // be meaningfully combined across seasons — "All" always falls back to Total-only display.
       weeklyScores: [],

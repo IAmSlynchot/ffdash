@@ -156,6 +156,13 @@
   white-space: nowrap;
 }
 
+.standings-table th.total-col,
+.standings-table td.total-col {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .standings-table th,
 .standings-table td {
   text-align: left;
