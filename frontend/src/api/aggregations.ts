@@ -105,6 +105,7 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
     bracket: { winnersBracket: [], toiletBowlBracket: [] },
     // Ditto for a week-by-week schedule — "All" stays season-total-only.
     weeklyMatchups: [],
+    currentWeek: null,
   }
 }
 

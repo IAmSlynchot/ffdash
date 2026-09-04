@@ -12,18 +12,18 @@ const CARD_HEIGHT = 66
 const ROW_HEIGHT = 84 // vertical space each matchup "slot" occupies, including its own gap
 const COLUMN_GAP = 46
 
-/** Renders a season's playoff bracket(s). Both lists empty (Pick'em, or playoffs not started
- * yet — see SeasonBracket) means nothing to show at all. */
+/** Renders a season's playoff bracket(s) as their own dashboard card. Both lists empty (Pick'em,
+ * or playoffs not started yet — see SeasonBracket) means nothing to show at all. */
 export default function PlayoffBrackets({ bracket }: PlayoffBracketsProps) {
   if (bracket.winnersBracket.length === 0 && bracket.toiletBowlBracket.length === 0) {
     return null
   }
 
   return (
-    <div className="brackets">
+    <section className="card brackets">
       {bracket.winnersBracket.length > 0 && <Bracket title="Playoffs" matchups={bracket.winnersBracket} />}
       {bracket.toiletBowlBracket.length > 0 && <Bracket title="Toilet Bowl" matchups={bracket.toiletBowlBracket} />}
-    </div>
+    </section>
   )
 }
 

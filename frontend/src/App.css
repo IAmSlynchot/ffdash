@@ -109,13 +109,38 @@
   margin: 0 0 4px;
 }
 
+/* One dashboard column of self-contained widget cards (Weekly Breakdown, Standings, Playoff
+   Brackets) — each section owns its own .card, this just gives them consistent spacing instead
+   of each one managing its own margin-top. */
+.league-view-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Shared dropdown-arrow styling for every <select> in the app (.season-select,
+   .week-select — the latter also covers RivalryTracker's opponent picker). Native
+   select arrows don't reliably respect box padding across browsers/OSes, so they render
+   flush against the border; appearance:none + a drawn-in chevron with explicit
+   background-position guarantees consistent spacing everywhere instead. */
+.season-select,
+.week-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%238b8794' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 11px;
+}
+
 .season-select {
   font: inherit;
   font-size: 15px;
-  padding: 8px 12px;
+  padding: 8px 30px 8px 12px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: var(--bg);
+  background-color: var(--bg);
   color: var(--text-h);
 }
 
@@ -321,13 +346,28 @@
 .rivalry-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 16px;
   border-radius: 8px;
   border: 1px solid var(--accent-border);
+  overflow: hidden;
+}
+
+.rivalry-card-header {
+  padding: 14px 20px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-bottom: 1px solid var(--accent-border);
+}
+
+.rivalry-card-body {
+  display: flex;
+  gap: 16px;
+  padding: 14px 20px 16px;
   background: var(--accent-bg);
-  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .rivalry-card-body {
+    flex-direction: column;
+  }
 }
 
 .rivalry-vs {
@@ -336,7 +376,6 @@
   justify-content: center;
   gap: 16px;
   width: 100%;
-  margin-bottom: 6px;
 }
 
 .rivalry-side {
@@ -368,12 +407,38 @@ a.rivalry-side-name:hover {
   text-decoration: underline;
 }
 
-.rivalry-score {
+.rivalry-score-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
+}
+
+.rivalry-score {
   font-size: 22px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text-h);
+}
+
+.rivalry-winrate-bar {
+  width: 56px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.rivalry-winrate-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+}
+
+.rivalry-main {
+  flex: 13;
+  min-width: 0;
 }
 
 .rivalry-title {
@@ -384,27 +449,61 @@ a.rivalry-side-name:hover {
 }
 
 .rivalry-flavor {
-  margin: 2px 0 0;
-  max-width: 440px;
+  margin: 4px 0 0;
   font-size: 13px;
   color: var(--text);
 }
 
-.rivalry-stats {
+.rivalry-last-meeting {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  margin-top: 10px;
+  align-items: flex-start;
+  gap: 4px;
+  flex: 7;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.rivalry-last-meeting-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.rivalry-last-meeting-result {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.rivalry-last-meeting-result-won {
+  color: #2f9e5c;
+}
+
+.rivalry-last-meeting-result-lost {
+  color: #e05252;
+}
+
+.rivalry-last-meeting-result-tied {
+  color: var(--text);
+}
+
+.rivalry-last-meeting-score {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-h);
+}
+
+.rivalry-last-meeting-context {
   font-size: 12px;
   color: var(--text);
 }
 
 /* ===== Weekly Results / Highlights ===== */
-
-.weekly-view {
-  margin-top: 32px;
-}
 
 .weekly-view-header {
   display: flex;
@@ -422,10 +521,10 @@ a.rivalry-side-name:hover {
 .week-select {
   font: inherit;
   font-size: 14px;
-  padding: 6px 10px;
+  padding: 6px 28px 6px 10px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: var(--bg);
+  background-color: var(--bg);
   color: var(--text-h);
 }
 
@@ -566,7 +665,6 @@ a.week-matchup-team:hover {
   display: flex;
   flex-direction: column;
   gap: 32px;
-  margin-top: 32px;
 }
 
 .bracket-section + .bracket-section {

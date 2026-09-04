@@ -14,7 +14,7 @@ public enum BadgeType {
     TOILET_CHAMP("Toilet Bowl Champ", BadgeScope.FANTASY, "\"Won\" the toilet bowl — came in dead last in a season"),
     TOP_SCORER("Top Scorer", BadgeScope.FANTASY, "Scored the most total points of any team in a completed season."),
     ADVERSITY_SPECIALIST("Adversity Specialist", BadgeScope.FANTASY, "Most scored-against team in a completed season"),
-    FOUNDING_MEMBER("Founding Member", BadgeScope.ALL, "Played in a league's first-ever season."),
+    FOUNDING_MEMBER("Real OG", BadgeScope.ALL, "Played in a league's first-ever season."),
     MICRO_MANAGER("Micro-manager", BadgeScope.FANTASY, "Finished a season with the most roster transactions"),
     OVERCONFIDENT("Overconfident", BadgeScope.FANTASY, "Finished a season with fewest total roster moves"),
     TOTAL_DEGENERATE("Total Degenerate", BadgeScope.ALL, "Played in all 3 leagues"),

@@ -50,7 +50,7 @@ class BadgeEligibilityTest {
 
     private static SeasonSummary season(String season, String status, List<TeamSummary> teams, List<WeeklyMatchup> weeklyMatchups) {
         return new SeasonSummary("league-" + season, season, "Test League", status, teams.size(), teams,
-                List.of(), SeasonBracket.EMPTY, weeklyMatchups);
+                List.of(), SeasonBracket.EMPTY, weeklyMatchups, null);
     }
 
     private static OwnerSeasonEntry entry(LeagueFamilyConfig family, SeasonSummary season, TeamSummary team) {
@@ -149,7 +149,7 @@ class BadgeEligibilityTest {
         // badge silently depends on for correctness is worth pinning down directly.
         TeamSummary lonely = team("u1", 1, 0, 0, 0, 0, null, false, 0);
         SeasonSummary emptyTeamsSeason = new SeasonSummary("league-2024", "2024", "Test League", "complete", 0,
-                List.of(), List.of(), SeasonBracket.EMPTY, List.of());
+                List.of(), List.of(), SeasonBracket.EMPTY, List.of(), null);
         OwnerSeasonEntry e = entry(FANTASY_FAMILY, emptyTeamsSeason, lonely);
 
         // pointsFor (0) can never equal Double.NEGATIVE_INFINITY, so this must be false, not throw.

@@ -32,8 +32,13 @@ public record SleeperLeague(
      *                        as the boundary for which weeks' matchup/transaction data are safe to
      *                        fetch and cache forever (immutable) versus not yet worth fetching at
      *                        all (still being played).
+     * @param leg Sleeper's own notion of "the current week" — present (starting at 1) from
+     *            preseason onward, distinct from last_scored_leg: it advances as soon as a new
+     *            week starts, not only once one finishes. SeasonDataService surfaces this as
+     *            SeasonSummary.currentWeek so the frontend can default a week picker to "now"
+     *            on a live season even before that week has any scored results.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record LeagueSettings(Integer last_scored_leg) {
+    public record LeagueSettings(Integer last_scored_leg, Integer leg) {
     }
 }

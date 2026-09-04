@@ -31,6 +31,7 @@ function season(overrides: Partial<SeasonSummary> & { season: string; teams: Tea
     pickemWeeks: [],
     bracket: { winnersBracket: [], toiletBowlBracket: [] },
     weeklyMatchups: [],
+    currentWeek: null,
     ...overrides,
   }
 }

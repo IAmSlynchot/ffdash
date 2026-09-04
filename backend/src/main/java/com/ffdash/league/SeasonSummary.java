@@ -14,6 +14,11 @@ import java.util.List;
  *                        this season, oldest week first. Empty for Pick'em (no head-to-head
  *                        concept there) and before any week has fully concluded — see
  *                        SeasonDataService for the fetch/cache mechanism.
+ * @param currentWeek FANTASY only: Sleeper's live "current week" (settings.leg), null for
+ *                     Pick'em. Distinct from the last entry in weeklyMatchups — this can point
+ *                     at a week with no scored results yet (games still being played, or not
+ *                     yet started), which is exactly the point: it's how the frontend defaults
+ *                     a live season's week picker to "now" instead of the last *completed* week.
  */
 public record SeasonSummary(
         String leagueId,
@@ -24,6 +29,7 @@ public record SeasonSummary(
         List<TeamSummary> teams,
         List<Integer> pickemWeeks,
         SeasonBracket bracket,
-        List<WeeklyMatchup> weeklyMatchups
+        List<WeeklyMatchup> weeklyMatchups,
+        Integer currentWeek
 ) {
 }

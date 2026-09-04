@@ -90,7 +90,9 @@ public class SeasonDataService {
         Map<Integer, RosterIdentity> identityByRosterId = rosters.stream()
                 .collect(Collectors.toMap(SleeperRoster::roster_id, r -> resolveIdentity(r, usersById.get(r.owner_id()))));
 
-        WeeklyData weeklyData = fetchWeeklyData(leagueId, league, identityByRosterId, !pickemWeeks.isEmpty());
+        boolean isPickemSeason = !pickemWeeks.isEmpty();
+        Integer currentWeek = isPickemSeason || league.settings() == null ? null : league.settings().leg();
+        WeeklyData weeklyData = fetchWeeklyData(leagueId, league, identityByRosterId, isPickemSeason, currentWeek);
 
         List<TeamSummary> ranked = rosters.stream()
                 .map(roster -> toTeamSummary(
@@ -124,7 +126,8 @@ public class SeasonDataService {
                 teams,
                 List.copyOf(pickemWeeks.keySet()),
                 BracketAssembler.buildSeasonBracket(winnersBracketRaw, losersBracketRaw, identityByRosterId),
-                weeklyData.weeklyMatchups()
+                weeklyData.weeklyMatchups(),
+                currentWeek
         );
     }
 
@@ -251,24 +254,32 @@ public class SeasonDataService {
 
     /**
      * Fetches and resolves this season's week-by-week matchups and transaction counts. Empty
-     * for Pick'em (isPickemSeason) and for a season with no fully-scored week yet — Sleeper
-     * publishes league.settings but omits last_scored_leg entirely until at least one week has
-     * concluded (confirmed live), which this treats the same as 0.
+     * for Pick'em (isPickemSeason) and for a season with no fully-scored week yet and no live
+     * week either — Sleeper publishes league.settings but omits last_scored_leg entirely until
+     * at least one week has concluded (confirmed live), which this treats the same as 0.
      *
      * Weeks already present in matchupsCache are never refetched (they're immutable once
      * final) — only genuinely new weeks trigger Sleeper calls, fetched in parallel via virtual
      * threads so the wall-clock cost of a first-time backfill stays close to one round trip
      * instead of one per week. A week whose fetch fails is left out of the cache (not cached as
      * empty), so it's retried the next time this runs rather than staying permanently blank.
+     *
+     * currentWeek (Sleeper's settings.leg), when it's beyond lastScoredLeg, names a week that's
+     * either not started or still being played — Sleeper still returns its matchup pairings
+     * (the season's full schedule is set upfront), just with null/partial points. That week is
+     * fetched fresh every call via fetchLiveWeekMatchups rather than through matchupsCache, since
+     * caching it forever the way a final week is cached would freeze its score at whatever
+     * partial state was first seen.
      */
-    private WeeklyData fetchWeeklyData(String leagueId, SleeperLeague league,
-                                        Map<Integer, RosterIdentity> identityByRosterId, boolean isPickemSeason) {
+    private WeeklyData fetchWeeklyData(String leagueId, SleeperLeague league, Map<Integer, RosterIdentity> identityByRosterId,
+                                        boolean isPickemSeason, Integer currentWeek) {
         if (isPickemSeason) {
             return WeeklyData.EMPTY;
         }
         int lastScoredLeg = league.settings() != null && league.settings().last_scored_leg() != null
                 ? league.settings().last_scored_leg() : 0;
-        if (lastScoredLeg <= 0) {
+        boolean hasLiveWeek = currentWeek != null && currentWeek > lastScoredLeg;
+        if (lastScoredLeg <= 0 && !hasLiveWeek) {
             return WeeklyData.EMPTY;
         }
 
@@ -306,7 +317,21 @@ public class SeasonDataService {
                 }
             }
         }
+
+        if (hasLiveWeek) {
+            weeklyMatchups.addAll(fetchLiveWeekMatchups(leagueId, currentWeek, identityByRosterId));
+        }
+
         return new WeeklyData(weeklyMatchups, transactionCountByRosterId);
+    }
+
+    private List<WeeklyMatchup> fetchLiveWeekMatchups(String leagueId, int week, Map<Integer, RosterIdentity> identityByRosterId) {
+        try {
+            List<SleeperMatchup> matchups = sleeperClient.getMatchups(leagueId, week);
+            return resolveWeeklyMatchups(week, matchups != null ? matchups : List.of(), identityByRosterId);
+        } catch (RestClientException e) {
+            return List.of();
+        }
     }
 
     // Narrowed to RestClientException (Sleeper itself failed), not a bare RuntimeException, so a

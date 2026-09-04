@@ -28,16 +28,20 @@ interface RivalryDescriptor {
 function describeRivalry(ownerDisplayName: string, opponentTeamName: string, record: HeadToHeadRecord): RivalryDescriptor {
   const { wins, losses } = record
   if (wins === 0 && losses === 0) {
-    return { title: 'Stalemate', flavorText: 'Every meeting ends in a standoff — neither side can find an edge.' }
+    return { title: 'Tense Mystery', flavorText: 'It\'s a classic will-they, won\'t-they. These two teams have yet to come head-to-head in the wild, but the rest of us wait with bated breath for the day that they do.' }
   }
-  if (wins === 0 || losses === 0) {
-    return { title: 'Undefeated', flavorText: 'One side has never tasted victory in this matchup.' }
+  if (losses === 0) {
+    return { title: 'Undefeated', flavorText: `Matchups between these two teams have been difficult for both sides. On the one hand, ${opponentTeamName} has never won. On the other hand, ${ownerDisplayName} has never gotten a competitive opponent.` }
+  }
+  if (wins === 0) {
+    return { title: 'Utterly Winless', flavorText: `Try, try, and try again. Every time ${ownerDisplayName} bravely picks up the Sisyphean pursuit of challenging ${opponentTeamName}, it ends the same way. But one must admire the dedication.` }
   }
   if (Math.abs(wins - losses) <= 1) {
-    return { title: 'Certified Rivalry', flavorText: 'A true coin flip — bragging rights change hands constantly.' }
+    return { title: 'Certified Heated Rivalry', flavorText: 'Each time these two teams come head-to-head, the raw tension is palpable. Who will end up on top? Only time and an HBO suscription will tell.' }
   }
   const dominant = wins > losses ? ownerDisplayName : opponentTeamName
-  return { title: `${dominant} Father`, flavorText: "This one isn't close — one side clearly has the other's number." }
+  const submissive = wins > losses ? opponentTeamName : ownerDisplayName
+  return { title: `${dominant} is ${submissive} Father`, flavorText: `Some matchups are close, some are tense. Not this one. Whenever these two teams meet, ${submissive} can be seen nervously tweaking their lineup, grasping for hope, while ${dominant} nonchalantly chalks up a W.` }
 }
 
 /**
@@ -138,34 +142,52 @@ function RivalryCard({ owner, rivalry }: RivalryCardProps) {
 
   return (
     <div className="rivalry-card">
-      <div className="rivalry-vs">
-        <div className="rivalry-side">
-          {owner.avatarUrl && <img src={owner.avatarUrl} alt="" className="avatar" />}
-          <span className="rivalry-side-name">{owner.displayName}</span>
-        </div>
-        <span className="rivalry-score">
-          {rivalry.wins}-{rivalry.losses}
-          {rivalry.ties > 0 ? `-${rivalry.ties}` : ''}
-        </span>
-        <div className="rivalry-side">
-          {rivalry.opponentAvatarUrl && <img src={rivalry.opponentAvatarUrl} alt="" className="avatar" />}
-          <Link to={`/managers/${rivalry.opponentUserId}`} className="rivalry-side-name">
-            {rivalry.opponentTeamName}
-          </Link>
+      <div className="rivalry-card-header">
+        <div className="rivalry-vs">
+          <div className="rivalry-side">
+            {owner.avatarUrl && <img src={owner.avatarUrl} alt="" className="avatar" />}
+            <span className="rivalry-side-name">{owner.displayName}</span>
+          </div>
+          <div className="rivalry-score-block">
+            <span className="rivalry-score">
+              {rivalry.wins}-{rivalry.losses}
+              {rivalry.ties > 0 ? `-${rivalry.ties}` : ''}
+            </span>
+            <div className="rivalry-winrate-bar" title={`${winPct}% win rate`}>
+              <div className="rivalry-winrate-bar-fill" style={{ width: `${winPct}%` }} />
+            </div>
+          </div>
+          <div className="rivalry-side">
+            {rivalry.opponentAvatarUrl && <img src={rivalry.opponentAvatarUrl} alt="" className="avatar" />}
+            <Link to={`/managers/${rivalry.opponentUserId}`} className="rivalry-side-name">
+              {rivalry.opponentTeamName}
+            </Link>
+          </div>
         </div>
       </div>
-      <div className="rivalry-title">{descriptor.title}</div>
-      <p className="rivalry-flavor">{descriptor.flavorText}</p>
-      <div className="rivalry-stats">
-        <span>
-          {gamesPlayed} game{gamesPlayed === 1 ? '' : 's'} played · {winPct}% win rate
-        </span>
-        {lastMeeting && (
-          <span>
-            Last meeting: {lastMeetingResult} {lastMeeting.myScore.toFixed(2)}-{lastMeeting.theirScore.toFixed(2)} ·{' '}
-            {lastMeeting.leagueFamilyDisplayName}, Week {lastMeeting.week} {lastMeeting.season}
-          </span>
-        )}
+      <div className="rivalry-card-body">
+        <div className="rivalry-main">
+          <div className="rivalry-title">{descriptor.title}</div>
+          <p className="rivalry-flavor">{descriptor.flavorText}</p>
+        </div>
+        <div className="rivalry-last-meeting">
+          <span className="rivalry-last-meeting-label">Last Meeting</span>
+          {lastMeeting && lastMeetingResult ? (
+            <>
+              <span className={`rivalry-last-meeting-result rivalry-last-meeting-result-${lastMeetingResult.toLowerCase()}`}>
+                {lastMeetingResult}
+              </span>
+              <span className="rivalry-last-meeting-score">
+                {lastMeeting.myScore.toFixed(2)}-{lastMeeting.theirScore.toFixed(2)}
+              </span>
+              <span className="rivalry-last-meeting-context">
+                {lastMeeting.leagueFamilyDisplayName} · Week {lastMeeting.week}, {lastMeeting.season}
+              </span>
+            </>
+          ) : (
+            <span className="rivalry-last-meeting-context">—</span>
+          )}
+        </div>
       </div>
     </div>
   )

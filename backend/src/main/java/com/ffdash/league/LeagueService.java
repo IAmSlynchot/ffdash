@@ -258,6 +258,7 @@ public class LeagueService {
                 ))
                 .toList();
         return new SeasonSummary(summary.leagueId(), summary.season(), summary.name(), summary.status(),
-                summary.totalRosters(), teams, summary.pickemWeeks(), summary.bracket(), summary.weeklyMatchups());
+                summary.totalRosters(), teams, summary.pickemWeeks(), summary.bracket(), summary.weeklyMatchups(),
+                summary.currentWeek());
     }
 }

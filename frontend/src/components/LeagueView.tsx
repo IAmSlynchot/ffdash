@@ -61,93 +61,99 @@ export default function LeagueView({ leagueKey }: LeagueViewProps) {
         </select>
       </div>
 
-      <div className="standings-table-scroll">
-        <table className="standings-table">
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th className="team-col">Team</th>
-              {isPickem ? (
-                <>
-                  <th className="total-col">Total</th>
-                  {isPickemWeekly &&
-                    season.pickemWeeks.map((week) => (
-                      <th key={week} className="week-col">
-                        Wk{week}
-                      </th>
-                    ))}
-                </>
-              ) : (
-                <>
-                  <th>W</th>
-                  <th>L</th>
-                  <th>T</th>
-                  <th>Points For</th>
-                  <th>Points Against</th>
-                </>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {season.teams.map((team) => (
-              <tr key={team.ownerUserId ?? team.teamName}>
-                <td className="rank-cell">{team.rank}</td>
-                <td className="team-cell">
-                  {team.ownerUserId ? (
-                    <Link to={`/managers/${team.ownerUserId}`} className="manager-link">
-                      {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
-                      {team.teamName}
-                    </Link>
+      <div className="league-view-sections">
+        {!isPickem && <WeeklySchedule weeklyMatchups={season.weeklyMatchups} status={season.status} currentWeek={season.currentWeek} />}
+
+        <section className="card">
+          <h3 className="card-title">Standings</h3>
+          <div className="standings-table-scroll">
+            <table className="standings-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th className="team-col">Team</th>
+                  {isPickem ? (
+                    <>
+                      <th className="total-col">Total</th>
+                      {isPickemWeekly &&
+                        season.pickemWeeks.map((week) => (
+                          <th key={week} className="week-col">
+                            Wk{week}
+                          </th>
+                        ))}
+                    </>
                   ) : (
                     <>
-                      {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
-                      {team.teamName}
+                      <th>W</th>
+                      <th>L</th>
+                      <th>T</th>
+                      <th>Points For</th>
+                      <th>Points Against</th>
                     </>
                   )}
-                  {team.coManagers.length > 0 && (
-                    <span className="co-managers">
-                      w/{' '}
-                      {team.coManagers.map((co, i) => (
-                        <span key={co.userId}>
-                          {i > 0 && ', '}
-                          <Link to={`/managers/${co.userId}`}>{co.displayName}</Link>
+                </tr>
+              </thead>
+              <tbody>
+                {season.teams.map((team) => (
+                  <tr key={team.ownerUserId ?? team.teamName}>
+                    <td className="rank-cell">{team.rank}</td>
+                    <td className="team-cell">
+                      {team.ownerUserId ? (
+                        <Link to={`/managers/${team.ownerUserId}`} className="manager-link">
+                          {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
+                          {team.teamName}
+                        </Link>
+                      ) : (
+                        <>
+                          {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
+                          {team.teamName}
+                        </>
+                      )}
+                      {team.coManagers.length > 0 && (
+                        <span className="co-managers">
+                          w/{' '}
+                          {team.coManagers.map((co, i) => (
+                            <span key={co.userId}>
+                              {i > 0 && ', '}
+                              <Link to={`/managers/${co.userId}`}>{co.displayName}</Link>
+                            </span>
+                          ))}
                         </span>
-                      ))}
-                    </span>
-                  )}
-                  {isPickem && team.boughtIn && (
-                    <span className="buyin-badge" title="Paid the buy-in — eligible for prize money">
-                      Buy-in
-                    </span>
-                  )}
-                </td>
-                {isPickem ? (
-                  <>
-                    <td className="total-col">{team.pointsFor}</td>
-                    {isPickemWeekly &&
-                      team.weeklyScores.map((score, i) => (
-                        <td key={season.pickemWeeks[i]} className="week-col">
-                          {score === null ? '—' : score}
-                        </td>
-                      ))}
-                  </>
-                ) : (
-                  <>
-                    <td>{team.wins}</td>
-                    <td>{team.losses}</td>
-                    <td>{team.ties}</td>
-                    <td>{team.pointsFor.toFixed(2)}</td>
-                    <td>{team.pointsAgainst.toFixed(2)}</td>
-                  </>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                      )}
+                      {isPickem && team.boughtIn && (
+                        <span className="buyin-badge" title="Paid the buy-in — eligible for prize money">
+                          Buy-in
+                        </span>
+                      )}
+                    </td>
+                    {isPickem ? (
+                      <>
+                        <td className="total-col">{team.pointsFor}</td>
+                        {isPickemWeekly &&
+                          team.weeklyScores.map((score, i) => (
+                            <td key={season.pickemWeeks[i]} className="week-col">
+                              {score === null ? '—' : score}
+                            </td>
+                          ))}
+                      </>
+                    ) : (
+                      <>
+                        <td>{team.wins}</td>
+                        <td>{team.losses}</td>
+                        <td>{team.ties}</td>
+                        <td>{team.pointsFor.toFixed(2)}</td>
+                        <td>{team.pointsAgainst.toFixed(2)}</td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-      {!isPickem && <WeeklySchedule weeklyMatchups={season.weeklyMatchups} />}
-      {!isPickem && <PlayoffBrackets bracket={season.bracket} />}
+        {!isPickem && <PlayoffBrackets bracket={season.bracket} />}
+      </div>
     </div>
   )
 }

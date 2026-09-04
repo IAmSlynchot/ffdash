@@ -103,6 +103,13 @@ export interface SeasonSummary {
   bracket: SeasonBracket
   /** FANTASY only: every week-by-week matchup fetched so far this season, oldest week first. Empty for Pick'em or before any week has concluded. */
   weeklyMatchups: WeeklyMatchup[]
+  /**
+   * FANTASY only: Sleeper's live "current week", null for Pick'em. Distinct from the last week
+   * in weeklyMatchups — this can point at a week with no scored results yet, which is what lets
+   * WeeklySchedule default a live season's week picker to "now" rather than the last *completed*
+   * week.
+   */
+  currentWeek: number | null
 }
 
 export type LeagueType = 'FANTASY' | 'PICKEM'
