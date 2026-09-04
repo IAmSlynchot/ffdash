@@ -1,4 +1,4 @@
-package com.ffdash.league;
+package com.ffdash.league.badge;
 
 import java.util.List;
 

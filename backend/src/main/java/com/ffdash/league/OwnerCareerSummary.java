@@ -1,5 +1,7 @@
 package com.ffdash.league;
 
+import com.ffdash.league.badge.EarnedBadge;
+
 import java.util.List;
 
 /**

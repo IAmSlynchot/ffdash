@@ -19,7 +19,7 @@ top-level concept. This is what most of the domain model below is structured aro
 ```
 ./gradlew bootRun        # run on http://localhost:8080
 ./gradlew build          # compile + test + package
-./gradlew test           # run tests (none exist yet, but this is wired up)
+./gradlew test           # run tests — pure-function unit tests, no Spring context needed
 ```
 
 **Frontend** (`frontend/`, React + Vite + TypeScript):
@@ -28,6 +28,7 @@ npm install
 npm run dev               # http://localhost:5173, proxies /api/* to localhost:8080
 npm run build              # tsc -b && vite build -> frontend/dist
 npm run lint                # oxlint
+npm run test                 # vitest run — pure-function unit tests (frontend/src/api/aggregations.test.ts)
 ```
 
 There's no single top-level command — backend and frontend are built/run separately.
@@ -53,6 +54,35 @@ database" below; this is a config + in-memory caching problem instead.
   Each per-season fetch is wrapped in try/catch-and-skip so one bad/unreachable league id
   degrades that one season out of the response instead of 500ing the whole request —
   important once a single request (`/api/owners` especially) fans out to many Sleeper calls.
+
+**Badge eligibility lives in its own package**, `com.ffdash.league.badge`
+([BadgeEligibility](backend/src/main/java/com/ffdash/league/badge/BadgeEligibility.java)) —
+not in `LeagueService`, where it originally lived until the eligibility switch (13 cases and
+growing) and its helper methods outgrew that class's own orchestration concerns.
+`LeagueService.computeBadges` builds one `BadgeContext` per `OwnerSeasonEntry` (bundling the
+entry, whether that season is complete, and the handful of extra fields only needed by
+lifetime-participation badges like `TOTAL_DEGENERATE`) and asks `BadgeEligibility` whether each
+`BadgeType` applies. Internally, `BadgeEligibility` is a `Map<BadgeType, BadgeEvaluator>` built
+once from a series of `evaluators.put(BadgeType.X, ctx -> ...)` lines — **adding a new badge
+means adding one more `put` line, not a new `switch` case.** `BadgeType`/`BadgeScope`/
+`EarnedBadge`/`BadgeEarning` moved into this package too, as the self-contained group they
+already were.
+
+**Error handling**: unhandled exceptions go through
+[ApiExceptionHandler](backend/src/main/java/com/ffdash/config/ApiExceptionHandler.java)
+(`@RestControllerAdvice`), which gives a Sleeper-call failure (`RestClientException` — what
+`SleeperClient`'s `RestClient` throws for both HTTP-error and I/O-level failures) a 502 and a
+WARN log, and anything else a 500 and an ERROR log — the log-level split is the point: it makes
+"an external call failed" visibly distinct from "our own code is broken" in production logs,
+where before both looked identical. `UnknownLeagueException` is handled explicitly there too
+(even though it has its own `@ResponseStatus(NOT_FOUND)`) — once any `@RestControllerAdvice`
+declares an `@ExceptionHandler(Exception.class)` catch-all, Spring resolves that before ever
+falling through to `@ResponseStatus`, so a more-specific handler is required, not optional.
+**Anywhere you catch a Sleeper-call failure to degrade gracefully** (see
+`LeagueService.fetchSeason`'s per-season skip, or `SeasonDataService`/`BracketAssembler`'s
+per-bracket/per-week skips), catch `RestClientException` specifically, not a bare
+`RuntimeException` — the latter would also silently swallow a genuine bug in the joining logic
+and log it identically to an ordinary Sleeper outage.
 
 **Caching**: `SeasonDataService` holds a plain `ConcurrentHashMap<leagueId, CachedEntry>`.
 A season with `status == "complete"` is immutable, so once fetched it's cached forever;
@@ -108,14 +138,25 @@ shareable link. Two top-level sections under [App.tsx](frontend/src/App.tsx)'s `
   keep that pattern for similar fetch-on-prop-change components; manually calling `setState`
   synchronously inside an effect is exactly what `oxlint`'s `set-state-in-effect` rule flags.
   Its season `<select>` includes every real season plus `All`; `All` doesn't hit the backend —
-  it runs [aggregateAllSeasons](frontend/src/api/leagues.ts) client-side over the
+  it runs [aggregateAllSeasons](frontend/src/api/aggregations.ts) client-side over the
   already-fetched `LeagueFamilyHistory` (that endpoint returns every season in one call
   anyway), mirroring the backend's own combining logic but scoped to just that one family.
-- **Manager View** (`/managers`, `/managers/:userId`) — thin pages over `GET /api/owners`:
-  a list table, and a per-manager page that re-fetches the same endpoint and filters by
-  `userId` client-side (rather than passing data via router state) so a direct link/reload
-  works standalone. Profile content beyond "which leagues is this person in" is intentionally
-  unbuilt — a deliberate gap pending a real design pass, not an oversight.
+- **Manager View** (`/managers`, `/managers/:userId`) — [ManagerProfilePage](frontend/src/pages/ManagerProfilePage.tsx)
+  re-fetches `GET /api/owners` and filters by `userId` client-side (rather than passing data via
+  router state) so a direct link/reload works standalone, then composes several cards, two of
+  them (badges, the Rivalry Tracker below) substantial enough to be their own components
+  ([BadgeGrid](frontend/src/components/BadgeGrid.tsx),
+  [RivalryTracker](frontend/src/components/RivalryTracker.tsx)) rather than living inline on
+  the page.
+
+**A dropdown driven by both a computed default and a user override** — `WeeklySchedule`'s week
+picker, `RivalryTracker`'s opponent picker — uses `useState<T | null>(null)` for the override
+plus a value re-derived every render from current props/data, **never a `useEffect` that
+syncs/resets it**: if the manual pick is no longer valid for the current props (season/manager
+switched under it), the derivation falls back on its own, with no reset code needed. This is
+the same "derive, don't sync" principle as `LeagueView`'s `key={key}` remount above, just
+applied at the single-value-of-state level instead of whole-component level — reach for it
+whenever a `<select>` needs "pick one, but default intelligently."
 
 ## Why no database
 

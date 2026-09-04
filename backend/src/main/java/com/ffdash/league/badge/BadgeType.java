@@ -1,9 +1,9 @@
-package com.ffdash.league;
+package com.ffdash.league.badge;
 
 /**
  * Statically defined achievement types — titles/descriptions never vary per
  * season. The per-earning context (which league-year it was earned in) lives
- * on EarnedBadge, not here; see LeagueService.computeBadges for eligibility.
+ * on EarnedBadge, not here; see BadgeEligibility for eligibility rules.
  * scope() gates which league type(s) (see LeaguesProperties.LeagueType) a
  * badge can even be earned in.
  */

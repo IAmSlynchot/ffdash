@@ -1,4 +1,4 @@
-package com.ffdash.league;
+package com.ffdash.league.badge;
 
 /** One league-year in which an owner earned a particular EarnedBadge. */
 public record BadgeEarning(

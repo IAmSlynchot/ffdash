@@ -5,9 +5,15 @@ import com.ffdash.config.LeaguesProperties.LeagueFamilyConfig;
 import com.ffdash.config.LeaguesProperties.LeagueType;
 import com.ffdash.config.LeaguesProperties.SeasonConfig;
 import com.ffdash.config.PickemProperties;
+import com.ffdash.league.badge.BadgeContext;
+import com.ffdash.league.badge.BadgeEarning;
+import com.ffdash.league.badge.BadgeEligibility;
+import com.ffdash.league.badge.BadgeType;
+import com.ffdash.league.badge.EarnedBadge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -15,15 +21,13 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.DoubleBinaryOperator;
-import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Orchestrates league families: looks families up by their configured key,
  * assembles multi-season history, and computes the cross-league owner
- * aggregate. Per-season fetching/joining/caching lives in SeasonDataService.
+ * aggregate. Per-season fetching/joining/caching lives in SeasonDataService;
+ * badge eligibility rules live in the league.badge package (BadgeEligibility).
  */
 @Service
 public class LeagueService {
@@ -36,11 +40,16 @@ public class LeagueService {
     private final SeasonDataService seasonDataService;
     private final LeaguesProperties leaguesProperties;
     private final PickemProperties pickemProperties;
+    private final BadgeEligibility badgeEligibility;
 
-    public LeagueService(SeasonDataService seasonDataService, LeaguesProperties leaguesProperties, PickemProperties pickemProperties) {
+    public LeagueService(
+            SeasonDataService seasonDataService, LeaguesProperties leaguesProperties,
+            PickemProperties pickemProperties, BadgeEligibility badgeEligibility
+    ) {
         this.seasonDataService = seasonDataService;
         this.leaguesProperties = leaguesProperties;
         this.pickemProperties = pickemProperties;
+        this.badgeEligibility = badgeEligibility;
     }
 
     public List<LeagueFamilyRef> listLeagueFamilies() {
@@ -145,20 +154,24 @@ public class LeagueService {
      * per-owner entries used above. An owner can earn the same badge type in more than one
      * league-year; rather than repeating the badge once per year, each BadgeType appears at
      * most once, carrying every year it was earned (EarnedBadge.earnings) so the profile
-     * stays compact without losing any of that history.
+     * stays compact without losing any of that history. Eligibility itself is delegated to
+     * BadgeEligibility (league.badge) — this method just builds each entry's BadgeContext
+     * and loops.
      */
     private List<EarnedBadge> computeBadges(List<OwnerSeasonEntry> ownerEntries) {
         Map<BadgeType, List<BadgeEarning>> earningsByType = new EnumMap<>(BadgeType.class);
         // Only used by TOTAL_DEGENERATE, a lifetime-participation badge rather than a per-season
-        // performance one — it needs a single entry to attach its one earning to (see there).
+        // performance one — it needs a single entry to attach its one earning to (see BadgeEligibility).
         OwnerSeasonEntry mostRecentEntry = ownerEntries.stream()
                 .max(Comparator.comparing(e -> e.season().season()))
                 .orElseThrow();
+        int configuredLeagueCount = leaguesProperties.getLeagues().size();
 
         for (OwnerSeasonEntry e : ownerEntries) {
             boolean seasonComplete = COMPLETE_STATUS.equals(e.season().status());
+            BadgeContext ctx = new BadgeContext(e, seasonComplete, ownerEntries, mostRecentEntry, configuredLeagueCount);
             for (BadgeType type : BadgeType.values()) {
-                if (type.scope().appliesTo(e.family().type()) && isEligible(type, e, seasonComplete, ownerEntries, mostRecentEntry)) {
+                if (type.scope().appliesTo(e.family().type()) && badgeEligibility.isEligible(type, ctx)) {
                     addEarning(earningsByType, type, e);
                 }
             }
@@ -175,122 +188,6 @@ public class LeagueService {
                 })
                 .sorted(Comparator.comparing((EarnedBadge b) -> b.earnings().get(0).season()).reversed())
                 .toList();
-    }
-
-    /**
-     * Per-type eligibility for one (owner, family, season) entry. Fantasy placement badges key
-     * off that season's playoff bracket rather than the regular-season standings rank — CHAMPION
-     * and the fantasy half of TOP_3 use TeamSummary.playoffPlacement (the main bracket's 1..N
-     * standing), while TOILET_CHAMP uses the separate TeamSummary.toiletBowlChamp flag (the
-     * consolation bracket's own winner, which doesn't correspond to any single placement number).
-     * Pick'em has no playoffs, so its placement badges (TOP_3, PICKINATOR) use rank instead.
-     * ownerEntries/mostRecentEntry are only needed by TOTAL_DEGENERATE (see there) — every other
-     * case is self-contained within e.
-     */
-    private boolean isEligible(
-            BadgeType type, OwnerSeasonEntry e, boolean seasonComplete, List<OwnerSeasonEntry> ownerEntries, OwnerSeasonEntry mostRecentEntry
-    ) {
-        return switch (type) {
-            // Founding Member is the only badge not gated on season completion — it's about
-            // membership, not a performance placement.
-            case FOUNDING_MEMBER -> isFoundingSeason(e);
-            case CHAMPION -> seasonComplete && isPlacement(e, 1);
-            case TOP_3 -> seasonComplete && isTopThree(e);
-            case TOILET_CHAMP -> seasonComplete && e.team().toiletBowlChamp();
-            case PICKINATOR -> seasonComplete && e.team().rank() == 1;
-            case TOP_SCORER -> seasonComplete && e.team().pointsFor() == maxAmong(e, TeamSummary::pointsFor);
-            case ADVERSITY_SPECIALIST -> seasonComplete && e.team().pointsAgainst() == maxAmong(e, TeamSummary::pointsAgainst);
-            case MICRO_MANAGER -> seasonComplete && e.team().transactionCount() > 0
-                    && e.team().transactionCount() == maxAmong(e, t -> (double) t.transactionCount());
-            // The mirror of MICRO_MANAGER, but a genuine "did nothing all season" (0) has to be
-            // allowed to win here — unlike MICRO_MANAGER, requiring > 0 would disqualify the most
-            // impressive case. Guard on weeklyMatchups instead (same guard as
-            // isSeasonSingleWeekExtreme below): if per-week data was actually fetched for this
-            // season, an all-zero transactionCount is real; if it's empty (never fetched), the
-            // 0-everywhere tie is just missing data and shouldn't award anyone.
-            case OVERCONFIDENT -> seasonComplete && !e.season().weeklyMatchups().isEmpty()
-                    && e.team().transactionCount() == minAmong(e, t -> (double) t.transactionCount());
-            // A lifetime-participation badge, not a per-season one: true once this owner has
-            // appeared in every currently configured league family, regardless of which family/
-            // season e itself is. Restricted to e == mostRecentEntry so it's earned exactly once
-            // (attached to their latest season) rather than once per season/family they've ever
-            // played, which — since the underlying condition doesn't vary by season — would
-            // otherwise repeat it on every single entry.
-            case TOTAL_DEGENERATE -> e == mostRecentEntry && playedEveryLeague(ownerEntries);
-            case MR_BOOMBASTIC -> seasonComplete && isSeasonSingleWeekExtreme(e, true);
-            case CHUMP_YEAR -> seasonComplete && isSeasonSingleWeekExtreme(e, false);
-        };
-    }
-
-    /** Whether this owner has appeared in every currently configured league family at least once. */
-    private boolean playedEveryLeague(List<OwnerSeasonEntry> ownerEntries) {
-        long familiesPlayed = ownerEntries.stream().map(e -> e.family().key()).distinct().count();
-        return familiesPlayed >= leaguesProperties.getLeagues().size();
-    }
-
-    /**
-     * Whether this team had the single highest (highWeek) or lowest (!highWeek) individual weekly
-     * score of any team in the season — one specific game, not a season total (that's TOP_SCORER/
-     * ADVERSITY_SPECIALIST instead). Guards against SeasonSummary.weeklyMatchups being empty (no
-     * per-week data fetched yet for this season — see SeasonDataService): without it, "this team's
-     * extreme" and "the season's extreme" would both fall back to the same sentinel and compare
-     * equal, awarding the badge to everyone.
-     */
-    private static boolean isSeasonSingleWeekExtreme(OwnerSeasonEntry e, boolean highWeek) {
-        if (e.season().weeklyMatchups().isEmpty()) {
-            return false;
-        }
-        String ownerUserId = e.team().ownerUserId();
-        DoubleBinaryOperator combiner = highWeek ? Double::max : Double::min;
-        double sentinel = highWeek ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
-
-        double teamExtreme = weeklyScores(e.season())
-                .filter(side -> ownerUserId != null && ownerUserId.equals(side.ownerUserId()))
-                .mapToDouble(MatchupSide::score)
-                .reduce(combiner)
-                .orElse(sentinel);
-        double seasonExtreme = weeklyScores(e.season())
-                .mapToDouble(MatchupSide::score)
-                .reduce(combiner)
-                .orElse(sentinel);
-        return teamExtreme == seasonExtreme;
-    }
-
-    private static Stream<MatchupSide> weeklyScores(SeasonSummary season) {
-        return season.weeklyMatchups().stream().flatMap(m -> Stream.of(m.team1(), m.team2()));
-    }
-
-    private static boolean isFoundingSeason(OwnerSeasonEntry e) {
-        String foundingSeason = e.family().seasons().stream()
-                .map(SeasonConfig::season)
-                .min(Comparator.naturalOrder())
-                .orElse(null);
-        return e.season().season().equals(foundingSeason);
-    }
-
-    private static boolean isPlacement(OwnerSeasonEntry e, int placement) {
-        return e.team().playoffPlacement() != null && e.team().playoffPlacement() == placement;
-    }
-
-    private static boolean isTopThree(OwnerSeasonEntry e) {
-        return switch (e.family().type()) {
-            case FANTASY -> e.team().playoffPlacement() != null && e.team().playoffPlacement() <= TOP_FINISH_THRESHOLD;
-            case PICKEM -> e.team().rank() <= TOP_FINISH_THRESHOLD;
-        };
-    }
-
-    private static double maxAmong(OwnerSeasonEntry e, ToDoubleFunction<TeamSummary> metric) {
-        return e.season().teams().stream()
-                .mapToDouble(metric)
-                .max()
-                .orElse(Double.NEGATIVE_INFINITY);
-    }
-
-    private static double minAmong(OwnerSeasonEntry e, ToDoubleFunction<TeamSummary> metric) {
-        return e.season().teams().stream()
-                .mapToDouble(metric)
-                .min()
-                .orElse(Double.POSITIVE_INFINITY);
     }
 
     private static void addEarning(Map<BadgeType, List<BadgeEarning>> earningsByType, BadgeType type, OwnerSeasonEntry e) {
@@ -323,12 +220,19 @@ public class LeagueService {
                 .orElseThrow(() -> new UnknownLeagueException(key));
     }
 
-    /** Empty if this season's data couldn't be fetched, so one bad/unreachable league id doesn't fail the whole response. */
+    /**
+     * Empty if this season's data couldn't be fetched, so one bad/unreachable league id doesn't
+     * fail the whole response. Deliberately narrowed to RestClientException (Sleeper itself
+     * failed — a known, expected failure mode) rather than a bare RuntimeException: a genuine bug
+     * in the joining logic (e.g. a null-handling mistake in SeasonDataService) now propagates to
+     * ApiExceptionHandler instead of being silently WARN-logged and that season just dropped,
+     * indistinguishable from an ordinary Sleeper outage.
+     */
     private Optional<SeasonSummary> fetchSeason(LeagueFamilyConfig family, SeasonConfig seasonConfig) {
         try {
             SeasonSummary summary = seasonDataService.getSeasonSummary(seasonConfig.leagueId());
             return Optional.of(withBuyIns(family, seasonConfig, summary));
-        } catch (RuntimeException e) {
+        } catch (RestClientException e) {
             log.warn("Skipping {} {} season (league id {}): {}",
                     family.key(), seasonConfig.season(), seasonConfig.leagueId(), e.getMessage());
             return Optional.empty();
@@ -355,19 +259,5 @@ public class LeagueService {
                 .toList();
         return new SeasonSummary(summary.leagueId(), summary.season(), summary.name(), summary.status(),
                 summary.totalRosters(), teams, summary.pickemWeeks(), summary.bracket(), summary.weeklyMatchups());
-    }
-
-    /**
-     * One (family, season, team, person) tuple — team/season carry that team's actual result,
-     * manager identifies which person this entry is for. A team with a co-manager produces two
-     * entries, one per person, both pointing at the same team/season so both get credit for its
-     * result; manager is what tells them apart (and is who owns this entry once grouped by
-     * userId in getOwnerCareerSummaries).
-     */
-    private record OwnerSeasonEntry(LeagueFamilyConfig family, SeasonSummary season, TeamSummary team, ManagerIdentity manager) {
-    }
-
-    /** A person's identity as of one season — same shape as TeamSummary's owner fields, but always about the person this entry is for, not necessarily the team's primary owner. */
-    private record ManagerIdentity(String userId, String displayName, String avatarUrl) {
     }
 }

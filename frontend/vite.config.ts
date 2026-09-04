@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
@@ -13,5 +14,10 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+  },
+  // No jsdom/component-testing setup — the only tests today are pure functions
+  // (see src/api/aggregations.test.ts), which run fine under Vite's default node environment.
+  test: {
+    include: ['src/**/*.test.ts'],
   },
 })

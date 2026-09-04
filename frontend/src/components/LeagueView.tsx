@@ -1,5 +1,6 @@
 import { Link, useSearchParams } from 'react-router-dom'
-import { aggregateAllSeasons, fetchFamilyHistory, type SeasonSummary } from '../api/leagues'
+import { aggregateAllSeasons } from '../api/aggregations'
+import { fetchFamilyHistory, type SeasonSummary } from '../api/leagues'
 import { useApiData } from '../hooks/useApiData'
 import LoadingStatus from './LoadingStatus'
 import PlayoffBrackets from './PlayoffBrackets'

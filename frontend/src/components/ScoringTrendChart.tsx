@@ -1,4 +1,4 @@
-import type { ScoringTrendPoint } from '../api/leagues'
+import type { ScoringTrendPoint } from '../api/aggregations'
 
 const CHART_WIDTH = 600
 const CHART_HEIGHT = 100
