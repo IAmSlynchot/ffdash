@@ -15,8 +15,10 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.DoubleBinaryOperator;
 import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Orchestrates league families: looks families up by their configured key,
@@ -147,11 +149,16 @@ public class LeagueService {
      */
     private List<EarnedBadge> computeBadges(List<OwnerSeasonEntry> ownerEntries) {
         Map<BadgeType, List<BadgeEarning>> earningsByType = new EnumMap<>(BadgeType.class);
+        // Only used by TOTAL_DEGENERATE, a lifetime-participation badge rather than a per-season
+        // performance one — it needs a single entry to attach its one earning to (see there).
+        OwnerSeasonEntry mostRecentEntry = ownerEntries.stream()
+                .max(Comparator.comparing(e -> e.season().season()))
+                .orElseThrow();
 
         for (OwnerSeasonEntry e : ownerEntries) {
             boolean seasonComplete = COMPLETE_STATUS.equals(e.season().status());
             for (BadgeType type : BadgeType.values()) {
-                if (type.scope().appliesTo(e.family().type()) && isEligible(type, e, seasonComplete)) {
+                if (type.scope().appliesTo(e.family().type()) && isEligible(type, e, seasonComplete, ownerEntries, mostRecentEntry)) {
                     addEarning(earningsByType, type, e);
                 }
             }
@@ -177,8 +184,12 @@ public class LeagueService {
      * standing), while TOILET_CHAMP uses the separate TeamSummary.toiletBowlChamp flag (the
      * consolation bracket's own winner, which doesn't correspond to any single placement number).
      * Pick'em has no playoffs, so its placement badges (TOP_3, PICKINATOR) use rank instead.
+     * ownerEntries/mostRecentEntry are only needed by TOTAL_DEGENERATE (see there) — every other
+     * case is self-contained within e.
      */
-    private static boolean isEligible(BadgeType type, OwnerSeasonEntry e, boolean seasonComplete) {
+    private boolean isEligible(
+            BadgeType type, OwnerSeasonEntry e, boolean seasonComplete, List<OwnerSeasonEntry> ownerEntries, OwnerSeasonEntry mostRecentEntry
+    ) {
         return switch (type) {
             // Founding Member is the only badge not gated on season completion — it's about
             // membership, not a performance placement.
@@ -191,7 +202,62 @@ public class LeagueService {
             case ADVERSITY_SPECIALIST -> seasonComplete && e.team().pointsAgainst() == maxAmong(e, TeamSummary::pointsAgainst);
             case MICRO_MANAGER -> seasonComplete && e.team().transactionCount() > 0
                     && e.team().transactionCount() == maxAmong(e, t -> (double) t.transactionCount());
+            // The mirror of MICRO_MANAGER, but a genuine "did nothing all season" (0) has to be
+            // allowed to win here — unlike MICRO_MANAGER, requiring > 0 would disqualify the most
+            // impressive case. Guard on weeklyMatchups instead (same guard as
+            // isSeasonSingleWeekExtreme below): if per-week data was actually fetched for this
+            // season, an all-zero transactionCount is real; if it's empty (never fetched), the
+            // 0-everywhere tie is just missing data and shouldn't award anyone.
+            case OVERCONFIDENT -> seasonComplete && !e.season().weeklyMatchups().isEmpty()
+                    && e.team().transactionCount() == minAmong(e, t -> (double) t.transactionCount());
+            // A lifetime-participation badge, not a per-season one: true once this owner has
+            // appeared in every currently configured league family, regardless of which family/
+            // season e itself is. Restricted to e == mostRecentEntry so it's earned exactly once
+            // (attached to their latest season) rather than once per season/family they've ever
+            // played, which — since the underlying condition doesn't vary by season — would
+            // otherwise repeat it on every single entry.
+            case TOTAL_DEGENERATE -> e == mostRecentEntry && playedEveryLeague(ownerEntries);
+            case MR_BOOMBASTIC -> seasonComplete && isSeasonSingleWeekExtreme(e, true);
+            case CHUMP_YEAR -> seasonComplete && isSeasonSingleWeekExtreme(e, false);
         };
+    }
+
+    /** Whether this owner has appeared in every currently configured league family at least once. */
+    private boolean playedEveryLeague(List<OwnerSeasonEntry> ownerEntries) {
+        long familiesPlayed = ownerEntries.stream().map(e -> e.family().key()).distinct().count();
+        return familiesPlayed >= leaguesProperties.getLeagues().size();
+    }
+
+    /**
+     * Whether this team had the single highest (highWeek) or lowest (!highWeek) individual weekly
+     * score of any team in the season — one specific game, not a season total (that's TOP_SCORER/
+     * ADVERSITY_SPECIALIST instead). Guards against SeasonSummary.weeklyMatchups being empty (no
+     * per-week data fetched yet for this season — see SeasonDataService): without it, "this team's
+     * extreme" and "the season's extreme" would both fall back to the same sentinel and compare
+     * equal, awarding the badge to everyone.
+     */
+    private static boolean isSeasonSingleWeekExtreme(OwnerSeasonEntry e, boolean highWeek) {
+        if (e.season().weeklyMatchups().isEmpty()) {
+            return false;
+        }
+        String ownerUserId = e.team().ownerUserId();
+        DoubleBinaryOperator combiner = highWeek ? Double::max : Double::min;
+        double sentinel = highWeek ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+
+        double teamExtreme = weeklyScores(e.season())
+                .filter(side -> ownerUserId != null && ownerUserId.equals(side.ownerUserId()))
+                .mapToDouble(MatchupSide::score)
+                .reduce(combiner)
+                .orElse(sentinel);
+        double seasonExtreme = weeklyScores(e.season())
+                .mapToDouble(MatchupSide::score)
+                .reduce(combiner)
+                .orElse(sentinel);
+        return teamExtreme == seasonExtreme;
+    }
+
+    private static Stream<MatchupSide> weeklyScores(SeasonSummary season) {
+        return season.weeklyMatchups().stream().flatMap(m -> Stream.of(m.team1(), m.team2()));
     }
 
     private static boolean isFoundingSeason(OwnerSeasonEntry e) {
@@ -218,6 +284,13 @@ public class LeagueService {
                 .mapToDouble(metric)
                 .max()
                 .orElse(Double.NEGATIVE_INFINITY);
+    }
+
+    private static double minAmong(OwnerSeasonEntry e, ToDoubleFunction<TeamSummary> metric) {
+        return e.season().teams().stream()
+                .mapToDouble(metric)
+                .min()
+                .orElse(Double.POSITIVE_INFINITY);
     }
 
     private static void addEarning(Map<BadgeType, List<BadgeEarning>> earningsByType, BadgeType type, OwnerSeasonEntry e) {

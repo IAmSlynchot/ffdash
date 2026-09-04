@@ -130,6 +130,10 @@ export type BadgeType =
   | 'PICKINATOR'
   | 'MICRO_MANAGER'
   | 'ADVERSITY_SPECIALIST'
+  | 'OVERCONFIDENT'
+  | 'TOTAL_DEGENERATE'
+  | 'MR_BOOMBASTIC'
+  | 'CHUMP_YEAR'
 
 export interface BadgeEarning {
   leagueFamilyKey: string
@@ -336,6 +340,69 @@ export function computeScoringTrends(userId: string, histories: LeagueFamilyHist
     }
   }
   return series
+}
+
+export interface LeagueMembership {
+  key: string
+  displayName: string
+  type: LeagueType
+  /** Whether this person held every one of their seasons in this league as a co-manager, never as primary owner. */
+  coManagerOnly: boolean
+  /** The season they first appeared in this league family, e.g. "2023". */
+  since: string
+  /**
+   * This owner's team name as of their most recent season in this league — a per-season
+   * nickname, so "most recent" is the only sensible single value to show here. Null for Pick'em
+   * (no team names there, just usernames — see CLAUDE.md) or while `histories` doesn't have this
+   * family loaded yet (see ManagerProfilePage, which fetches it separately from seasonResults).
+   */
+  teamName: string | null
+}
+
+/**
+ * One row per league family this owner has ever played in, combining seasonResults (always
+ * available, drives displayName/since/coManagerOnly) with each family's full history (fetched
+ * separately by the caller — see ManagerProfilePage — only used here for teamName, so a family
+ * missing from `histories` just leaves teamName null rather than failing).
+ */
+export function computeLeagueMemberships(
+  userId: string,
+  seasonResults: SeasonResult[],
+  histories: LeagueFamilyHistory[],
+): LeagueMembership[] {
+  const historyByKey = new Map(histories.map((h) => [h.key, h]))
+  const resultsByKey = new Map<string, SeasonResult[]>()
+  for (const result of seasonResults) {
+    const list = resultsByKey.get(result.leagueFamilyKey) ?? []
+    list.push(result)
+    resultsByKey.set(result.leagueFamilyKey, list)
+  }
+
+  return Array.from(resultsByKey.entries()).map(([key, results]) => {
+    const since = results.reduce((earliest, r) => (r.season < earliest ? r.season : earliest), results[0].season)
+    const coManagerOnly = results.every((r) => r.coManager)
+    const history = historyByKey.get(key)
+
+    let teamName: string | null = null
+    if (history?.type === 'FANTASY') {
+      for (const season of history.seasons) {
+        const team = season.teams.find((t) => t.ownerUserId === userId || t.coManagers.some((c) => c.userId === userId))
+        if (team) {
+          teamName = team.teamName
+          break // newest season this owner appears in, per history.seasons' newest-first order
+        }
+      }
+    }
+
+    return {
+      key,
+      displayName: results[0].leagueFamilyDisplayName,
+      type: history?.type ?? 'FANTASY',
+      coManagerOnly,
+      since,
+      teamName,
+    }
+  })
 }
 
 export interface HeadToHeadRecord {

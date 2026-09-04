@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   computeHeadToHead,
+  computeLeagueMemberships,
   computeScoringTrends,
   fetchFamilyHistory,
   fetchOwnerCareerSummaries,
@@ -20,6 +21,10 @@ const BADGE_GLYPH: Record<EarnedBadge['type'], string> = {
   PICKINATOR: '🎯',
   MICRO_MANAGER: '🔬',
   ADVERSITY_SPECIALIST: '🛡️',
+  OVERCONFIDENT: '😎',
+  TOTAL_DEGENERATE: '🎰',
+  MR_BOOMBASTIC: '💥',
+  CHUMP_YEAR: '🤡',
 }
 
 export default function ManagerProfilePage() {
@@ -80,18 +85,10 @@ export default function ManagerProfilePage() {
     return <p className="status-message">Manager not found.</p>
   }
 
-  // Leagues this owner is part of, deduped from their per-season results. Flagged as
-  // co-managed only when every season they've had in that league was as a co-manager
-  // (never the team's primary owner) — otherwise it's their own team, full stop.
-  const leagues = Array.from(
-    new Map(
-      owner.seasonResults.map((r) => [r.leagueFamilyKey, r.leagueFamilyDisplayName] as const),
-    ).entries(),
-  ).map(([key, displayName]) => ({
-    key,
-    displayName,
-    coManagerOnly: owner.seasonResults.filter((r) => r.leagueFamilyKey === key).every((r) => r.coManager),
-  }))
+  // teamName stays null (and is simply not shown) until familyHistories loads — see
+  // computeLeagueMemberships. displayName/since/coManagerOnly don't need it, so this card
+  // doesn't wait on that fetch the way the Scoring Trend/Head-to-Head cards below do.
+  const leagues = computeLeagueMemberships(owner.userId, owner.seasonResults, familyHistories ?? [])
 
   const scoringTrends = familyHistories ? computeScoringTrends(owner.userId, familyHistories) : []
   const headToHead = familyHistories ? computeHeadToHead(owner.userId, familyHistories) : []
@@ -105,12 +102,18 @@ export default function ManagerProfilePage() {
 
       <div className="profile-cards">
         <section className="card">
-          <h3 className="card-title">Leagues</h3>
-          <ul className="manager-league-list">
-            {leagues.map(({ key, displayName, coManagerOnly }) => (
+          <h3 className="card-title">As seen in...</h3>
+          <ul className="league-card-grid">
+            {leagues.map(({ key, displayName, teamName, since, coManagerOnly }) => (
               <li key={key}>
-                <Link to={`/leagues/${key}`}>{displayName}</Link>
-                {coManagerOnly && <span className="co-manager-tag"> (co-manager)</span>}
+                <Link to={`/leagues/${key}`} className="league-card">
+                  <span className="league-card-name">
+                    {displayName}
+                    {coManagerOnly && <span className="co-manager-tag"> (co-manager)</span>}
+                  </span>
+                  {teamName && <span className="league-card-team">{teamName}</span>}
+                  <span className="league-card-since">Since {since}</span>
+                </Link>
               </li>
             ))}
           </ul>
