@@ -27,6 +27,10 @@ const BADGE_GLYPH: Record<EarnedBadge['type'], string> = {
   CHUMP_YEAR: '🤡',
 }
 
+// "Won the whole thing" badges get a gold/shimmer treatment (see .badge-item-legendary in
+// App.css) to stand apart from the rest of the grid's standard styling.
+const LEGENDARY_BADGES = new Set<EarnedBadge['type']>(['CHAMPION', 'PICKINATOR'])
+
 export default function ManagerProfilePage() {
   const { userId } = useParams<{ userId: string }>()
 
@@ -128,8 +132,10 @@ export default function ManagerProfilePage() {
               {owner.badges.map((badge) => {
                 const [mostRecent, ...older] = badge.earnings
                 const tooltipId = `badge-tooltip-${badge.type}`
+                const legendary = LEGENDARY_BADGES.has(badge.type)
                 return (
-                  <li key={badge.type} className="badge-item">
+                  <li key={badge.type} className={`badge-item${legendary ? ' badge-item-legendary' : ''}`}>
+                    {legendary && <span className="badge-shimmer" aria-hidden="true" />}
                     <span className="badge-glyph" aria-hidden="true">
                       {BADGE_GLYPH[badge.type]}
                     </span>

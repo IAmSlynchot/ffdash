@@ -809,6 +809,84 @@ a.week-matchup-team:hover {
   display: block;
 }
 
+/*
+ * A gold treatment for the two "won the whole thing" badges (CHAMPION, PICKINATOR) — everything
+ * else uses the standard --accent look, this pair stands apart. The animated sheen lives on a
+ * dedicated .badge-shimmer overlay rather than directly on .badge-item-legendary: that element
+ * also hosts .badge-tooltip (position: absolute, meant to escape the card and float below it),
+ * so it can't have overflow: hidden itself — the shimmer's own clipping is isolated to its own
+ * absolutely-positioned box instead, which .badge-item-legendary's position: relative anchors.
+ */
+.badge-item-legendary {
+  position: relative;
+  border-color: var(--gold-border);
+  background: var(--gold-bg);
+}
+
+.badge-item-legendary .badge-glyph,
+.badge-item-legendary .badge-title,
+.badge-item-legendary .badge-count {
+  color: var(--gold);
+}
+
+.badge-item-legendary .badge-info {
+  border-color: var(--gold-border);
+  color: var(--gold);
+}
+
+.badge-item-legendary .badge-info:hover,
+.badge-item-legendary .badge-info:focus-visible {
+  background: var(--gold-bg);
+}
+
+.badge-item-legendary .badge-tooltip {
+  border-color: var(--gold-border);
+}
+
+.badge-shimmer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.badge-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.55) 45%,
+    rgba(255, 215, 120, 0.85) 50%,
+    rgba(255, 255, 255, 0.55) 55%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  background-position: 160% 0;
+  mix-blend-mode: overlay;
+  animation: badge-shimmer 3.2s ease-in-out infinite;
+}
+
+@keyframes badge-shimmer {
+  0%,
+  15% {
+    background-position: 160% 0;
+  }
+  65%,
+  100% {
+    background-position: -60% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-shimmer::after {
+    animation: none;
+    background-position: 50% 0;
+  }
+}
+
 .badge-subtitle {
   font-size: 12px;
   color: var(--text);
