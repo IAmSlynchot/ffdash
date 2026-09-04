@@ -3,6 +3,7 @@ import { aggregateAllSeasons, fetchFamilyHistory, type SeasonSummary } from '../
 import { useApiData } from '../hooks/useApiData'
 import LoadingStatus from './LoadingStatus'
 import PlayoffBrackets from './PlayoffBrackets'
+import WeeklySchedule from './WeeklySchedule'
 
 interface LeagueViewProps {
   leagueKey: string
@@ -144,6 +145,7 @@ export default function LeagueView({ leagueKey }: LeagueViewProps) {
         </table>
       </div>
 
+      {!isPickem && <WeeklySchedule weeklyMatchups={season.weeklyMatchups} />}
       {!isPickem && <PlayoffBrackets bracket={season.bracket} />}
     </div>
   )

@@ -32,6 +32,13 @@ import java.util.List;
  * @param coManagers Other Sleeper users with edit access to this same roster (Sleeper's
  *                    "co-owner" concept), in addition to the primary owner above. Usually
  *                    empty — most rosters have exactly one manager.
+ * @param transactionCount FANTASY only: this team's total completed roster transactions
+ *                          (waivers, free agent adds, trades) across every week fetched so far
+ *                          this season — a trade counts for both sides. Always 0 for Pick'em,
+ *                          where the concept doesn't apply, and only reflects weeks whose
+ *                          matchup/transaction data has actually been fetched (see
+ *                          SeasonDataService), so it only means "final" once the season is
+ *                          complete.
  */
 public record TeamSummary(
         String ownerUserId,
@@ -48,7 +55,8 @@ public record TeamSummary(
         Integer playoffPlacement,
         boolean toiletBowlChamp,
         List<Double> weeklyScores,
-        List<CoManager> coManagers
+        List<CoManager> coManagers,
+        int transactionCount
 ) {
     /** One co-manager of a TeamSummary's roster — same identity shape as the primary owner fields. */
     public record CoManager(String userId, String displayName, String avatarUrl) {

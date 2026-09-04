@@ -189,8 +189,8 @@ public class LeagueService {
             case PICKINATOR -> seasonComplete && e.team().rank() == 1;
             case TOP_SCORER -> seasonComplete && e.team().pointsFor() == maxAmong(e, TeamSummary::pointsFor);
             case ADVERSITY_SPECIALIST -> seasonComplete && e.team().pointsAgainst() == maxAmong(e, TeamSummary::pointsAgainst);
-            // Not yet computed — see BadgeType.MICRO_MANAGER's javadoc for why.
-            case MICRO_MANAGER -> false;
+            case MICRO_MANAGER -> seasonComplete && e.team().transactionCount() > 0
+                    && e.team().transactionCount() == maxAmong(e, t -> (double) t.transactionCount());
         };
     }
 
@@ -276,11 +276,12 @@ public class LeagueService {
                         team.ownerUserId(), team.ownerDisplayName(), team.teamName(), team.avatarUrl(), team.rank(),
                         team.wins(), team.losses(), team.ties(), team.pointsFor(), team.pointsAgainst(),
                         pickemProperties.hasPaid(seasonConfig.season(), team.ownerDisplayName()),
-                        team.playoffPlacement(), team.toiletBowlChamp(), team.weeklyScores(), team.coManagers()
+                        team.playoffPlacement(), team.toiletBowlChamp(), team.weeklyScores(), team.coManagers(),
+                        team.transactionCount()
                 ))
                 .toList();
         return new SeasonSummary(summary.leagueId(), summary.season(), summary.name(), summary.status(),
-                summary.totalRosters(), teams, summary.pickemWeeks(), summary.bracket());
+                summary.totalRosters(), teams, summary.pickemWeeks(), summary.bracket(), summary.weeklyMatchups());
     }
 
     /**

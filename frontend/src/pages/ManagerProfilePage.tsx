@@ -1,7 +1,14 @@
 import { Link, useParams } from 'react-router-dom'
-import { fetchOwnerCareerSummaries, type EarnedBadge } from '../api/leagues'
+import {
+  computeHeadToHead,
+  computeScoringTrends,
+  fetchFamilyHistory,
+  fetchOwnerCareerSummaries,
+  type EarnedBadge,
+} from '../api/leagues'
 import { useApiData } from '../hooks/useApiData'
 import LoadingStatus from '../components/LoadingStatus'
+import ScoringTrendChart from '../components/ScoringTrendChart'
 
 const BADGE_GLYPH: Record<EarnedBadge['type'], string> = {
   CHAMPION: '🏆',
@@ -22,11 +29,26 @@ export default function ManagerProfilePage() {
   // own caching.
   const { data: owners, error, loading, slow, retry } = useApiData(fetchOwnerCareerSummaries, [])
 
+  const owner = owners?.find((o) => o.userId === userId) ?? null
+
+  // OwnerCareerSummary above deliberately omits weekly matchup detail (it's a cross-league
+  // aggregate) — the scoring trend and head-to-head cards need the full per-family history for
+  // just the leagues this owner is in, fetched separately here. familyKeys is [] (so this
+  // resolves to [] immediately, harmlessly) until `owner` above is known; the join(',') dep
+  // keeps the effect from re-firing on every render's new array identity.
+  const familyKeys = owner ? Array.from(new Set(owner.seasonResults.map((r) => r.leagueFamilyKey))) : []
+  const {
+    data: familyHistories,
+    error: familiesError,
+    loading: familiesLoading,
+    slow: familiesSlow,
+    retry: retryFamilies,
+  } = useApiData(() => Promise.all(familyKeys.map((key) => fetchFamilyHistory(key))), [familyKeys.join(',')])
+
   if (loading || error || !owners) {
     return <LoadingStatus loading={loading} slow={slow} error={error} retry={retry} subject="manager" />
   }
 
-  const owner = owners.find((o) => o.userId === userId)
   if (!owner) {
     return <p className="status-message">Manager not found.</p>
   }
@@ -43,6 +65,9 @@ export default function ManagerProfilePage() {
     displayName,
     coManagerOnly: owner.seasonResults.filter((r) => r.leagueFamilyKey === key).every((r) => r.coManager),
   }))
+
+  const scoringTrends = familyHistories ? computeScoringTrends(owner.userId, familyHistories) : []
+  const headToHead = familyHistories ? computeHeadToHead(owner.userId, familyHistories) : []
 
   return (
     <div className="manager-profile">
@@ -104,6 +129,50 @@ export default function ManagerProfilePage() {
                   </li>
                 )
               })}
+            </ul>
+          )}
+        </section>
+
+        <section className="card">
+          <h3 className="card-title">Scoring Trend</h3>
+          {familiesLoading || familiesError ? (
+            <LoadingStatus loading={familiesLoading} slow={familiesSlow} error={familiesError} retry={retryFamilies} subject="scoring history" />
+          ) : scoringTrends.length === 0 ? (
+            <p className="card-empty">No weekly scoring data yet.</p>
+          ) : (
+            <div className="trend-list">
+              {scoringTrends.map((series) => (
+                <div key={series.leagueFamilyKey} className="trend-series">
+                  <div className="trend-series-title">
+                    {series.leagueFamilyDisplayName} <span className="trend-series-season">{series.season}</span>
+                  </div>
+                  <ScoringTrendChart points={series.points} />
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="card">
+          <h3 className="card-title">Head-to-Head</h3>
+          {familiesLoading || familiesError ? (
+            <LoadingStatus loading={familiesLoading} slow={familiesSlow} error={familiesError} retry={retryFamilies} subject="head-to-head history" />
+          ) : headToHead.length === 0 ? (
+            <p className="card-empty">No head-to-head matchups yet.</p>
+          ) : (
+            <ul className="head-to-head-list">
+              {headToHead.map((record) => (
+                <li key={record.opponentUserId} className="head-to-head-row">
+                  <Link to={`/managers/${record.opponentUserId}`} className="manager-link">
+                    {record.opponentAvatarUrl && <img src={record.opponentAvatarUrl} alt="" className="avatar" />}
+                    {record.opponentTeamName}
+                  </Link>
+                  <span className="head-to-head-record">
+                    {record.wins}-{record.losses}
+                    {record.ties > 0 ? `-${record.ties}` : ''}
+                  </span>
+                </li>
+              ))}
             </ul>
           )}
         </section>

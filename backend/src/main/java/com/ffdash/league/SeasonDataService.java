@@ -4,7 +4,9 @@ import com.ffdash.config.LeaguesProperties;
 import com.ffdash.sleeper.SleeperBracketMatchup;
 import com.ffdash.sleeper.SleeperClient;
 import com.ffdash.sleeper.SleeperLeague;
+import com.ffdash.sleeper.SleeperMatchup;
 import com.ffdash.sleeper.SleeperRoster;
+import com.ffdash.sleeper.SleeperTransaction;
 import com.ffdash.sleeper.SleeperUser;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +21,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -45,6 +49,14 @@ public class SeasonDataService {
     private final SleeperClient sleeperClient;
     private final LeaguesProperties leaguesProperties;
     private final Map<String, CachedEntry> cache = new ConcurrentHashMap<>();
+
+    // Per-week caches, independent of the season-level cache above: a given (league, week) is
+    // fetched at most once ever, since a week that's fully scored (see fetchWeeklyData) never
+    // changes again. A failed fetch is deliberately left OUT of these maps rather than cached as
+    // empty, so it's retried on the next call instead of being permanently blank — see
+    // fetchWeekSafely.
+    private final Map<WeekKey, List<SleeperMatchup>> matchupsCache = new ConcurrentHashMap<>();
+    private final Map<WeekKey, List<SleeperTransaction>> transactionsCache = new ConcurrentHashMap<>();
 
     public SeasonDataService(SleeperClient sleeperClient, LeaguesProperties leaguesProperties) {
         this.sleeperClient = sleeperClient;
@@ -79,13 +91,16 @@ public class SeasonDataService {
         Map<Integer, RosterIdentity> identityByRosterId = rosters.stream()
                 .collect(Collectors.toMap(SleeperRoster::roster_id, r -> resolveIdentity(r, usersById.get(r.owner_id()))));
 
+        WeeklyData weeklyData = fetchWeeklyData(leagueId, league, identityByRosterId, !pickemWeeks.isEmpty());
+
         List<TeamSummary> ranked = rosters.stream()
                 .map(roster -> toTeamSummary(
                         roster, usersById.get(roster.owner_id()),
                         placementByRosterId.get(roster.roster_id()),
                         roster.roster_id().equals(toiletBowlChampionRosterId),
                         pickemWeeks,
-                        resolveCoManagers(roster, usersById)
+                        resolveCoManagers(roster, usersById),
+                        weeklyData.transactionCountByRosterId().getOrDefault(roster.roster_id(), 0)
                 ))
                 .sorted(
                         Comparator.comparingInt(TeamSummary::wins).reversed()
@@ -109,13 +124,14 @@ public class SeasonDataService {
                 league.total_rosters() == null ? teams.size() : league.total_rosters(),
                 teams,
                 List.copyOf(pickemWeeks.keySet()),
-                buildSeasonBracket(winnersBracketRaw, losersBracketRaw, identityByRosterId)
+                buildSeasonBracket(winnersBracketRaw, losersBracketRaw, identityByRosterId),
+                weeklyData.weeklyMatchups()
         );
     }
 
     private TeamSummary toTeamSummary(SleeperRoster roster, SleeperUser owner, Integer playoffPlacement,
                                        boolean toiletBowlChamp, Map<Integer, String> pickemWeeks,
-                                       List<TeamSummary.CoManager> coManagers) {
+                                       List<TeamSummary.CoManager> coManagers, int transactionCount) {
         var settings = roster.settings();
         String teamName = resolveTeamName(roster, owner);
         String avatarUrl = resolveAvatarUrl(owner);
@@ -156,7 +172,8 @@ public class SeasonDataService {
                 playoffPlacement,
                 toiletBowlChamp,
                 weeklyScores,
-                coManagers
+                coManagers,
+                transactionCount
         );
     }
 
@@ -164,7 +181,8 @@ public class SeasonDataService {
         return new TeamSummary(
                 team.ownerUserId(), team.ownerDisplayName(), team.teamName(), team.avatarUrl(), rank,
                 team.wins(), team.losses(), team.ties(), team.pointsFor(), team.pointsAgainst(), team.boughtIn(),
-                team.playoffPlacement(), team.toiletBowlChamp(), team.weeklyScores(), team.coManagers()
+                team.playoffPlacement(), team.toiletBowlChamp(), team.weeklyScores(), team.coManagers(),
+                team.transactionCount()
         );
     }
 
@@ -303,27 +321,107 @@ public class SeasonDataService {
         if (!playoffsStarted) {
             return SeasonBracket.EMPTY;
         }
+        // The toilet/losers bracket picks up numbering right where the winners bracket's real
+        // placements leave off (e.g. a 6-team winners bracket settles 1st-6th, so the toilet
+        // bracket starts at 7th) — see derivePlacementRanks for why its own placements need
+        // recomputing rather than just offsetting Sleeper's raw p.
+        int winnersBracketSize = winnersRaw.stream()
+                .filter(m -> m.p() != null)
+                .mapToInt(m -> m.p() + 1)
+                .max()
+                .orElse(0);
         return new SeasonBracket(
-                resolveMatchups(winnersRaw, identityByRosterId),
-                resolveMatchups(losersRaw, identityByRosterId)
+                resolveMatchups(winnersRaw, identityByRosterId, false, 0),
+                resolveMatchups(losersRaw, identityByRosterId, true, winnersBracketSize)
         );
     }
 
     private static List<BracketMatchup> resolveMatchups(List<SleeperBracketMatchup> raw,
-                                                          Map<Integer, RosterIdentity> identityByRosterId) {
+                                                          Map<Integer, RosterIdentity> identityByRosterId,
+                                                          boolean inverted, int rankOffset) {
+        Map<Integer, Integer> rankByMatchupId = derivePlacementRanks(raw, inverted, rankOffset);
+
         return raw.stream()
                 .sorted(Comparator.comparingInt(SleeperBracketMatchup::r).thenComparingInt(SleeperBracketMatchup::m))
-                .map(matchup -> new BracketMatchup(
-                        matchup.r(),
-                        matchup.m(),
-                        matchup.p(),
-                        resolveSlot(matchup.t1(), matchup.w(), identityByRosterId),
-                        resolveSlot(matchup.t2(), matchup.w(), identityByRosterId)
-                ))
+                .map(matchup -> {
+                    boolean isFinal = matchup.p() != null && matchup.p() == 1;
+                    // Sleeper always records the winner as whoever advances — for a normal
+                    // bracket that's also who finished better, but a toilet bracket's non-final
+                    // placement games run the opposite direction (see class note on
+                    // derivePlacementRanks), so the highlighted team is flipped there to match
+                    // who actually earned the better real standing. The bracket's own final is
+                    // deliberately left alone — Sleeper's recorded winner there really is the one
+                    // crowned, however dubious that "prize" is (see BracketTeam.winner).
+                    boolean flipHighlight = inverted && matchup.p() != null && !isFinal;
+                    Integer highlightedRosterId = flipHighlight ? matchup.l() : matchup.w();
+                    Integer rank = rankByMatchupId.get(matchup.m());
+
+                    return new BracketMatchup(
+                            matchup.r(),
+                            matchup.m(),
+                            matchup.p(),
+                            rank,
+                            placementLabel(isFinal, inverted, rank),
+                            resolveSlot(matchup.t1(), highlightedRosterId, identityByRosterId),
+                            resolveSlot(matchup.t2(), highlightedRosterId, identityByRosterId)
+                    );
+                })
                 .toList();
     }
 
-    private static BracketTeam resolveSlot(Integer rosterId, Integer winnerRosterId, Map<Integer, RosterIdentity> identityByRosterId) {
+    /**
+     * Maps a bracket's own placement-deciding matchupId -> the real final standing its
+     * better-placed team achieves. For the winners bracket (inverted = false, rankOffset = 0)
+     * this just reproduces Sleeper's own p (its numbering already ascends with real placement:
+     * p=1 is 1st, p=3 is 3rd, ...). The toilet/losers bracket runs backwards, though: within
+     * each of its games the LOWER scorer is recorded as the Sleeper "winner" and advances
+     * further into the bracket, and the matchup that most stubbornly keeps advancing (Sleeper's
+     * own p=1, "the final") is the one that settles the WORST standing, not the best — so real
+     * placement there needs the reverse tier order (largest p first) counted up from where the
+     * winners bracket left off, rather than trusting p's absolute value the way the winners
+     * bracket can.
+     */
+    private static Map<Integer, Integer> derivePlacementRanks(List<SleeperBracketMatchup> bracket, boolean inverted, int rankOffset) {
+        Comparator<SleeperBracketMatchup> tierOrder = inverted
+                ? Comparator.comparingInt(SleeperBracketMatchup::p).reversed()
+                : Comparator.comparingInt(SleeperBracketMatchup::p);
+        List<SleeperBracketMatchup> placementGames = bracket.stream()
+                .filter(matchup -> matchup.p() != null)
+                .sorted(tierOrder)
+                .toList();
+
+        Map<Integer, Integer> rankByMatchupId = new HashMap<>();
+        int rank = rankOffset + 1;
+        for (SleeperBracketMatchup matchup : placementGames) {
+            rankByMatchupId.put(matchup.m(), rank);
+            rank += 2;
+        }
+        return rankByMatchupId;
+    }
+
+    private static String placementLabel(boolean isFinal, boolean inverted, Integer rank) {
+        if (rank == null) {
+            return null;
+        }
+        if (isFinal) {
+            return inverted ? "Toilet Bowl" : "Championship";
+        }
+        return ordinal(rank) + " Place";
+    }
+
+    private static String ordinal(int n) {
+        if (n % 100 >= 11 && n % 100 <= 13) {
+            return n + "th";
+        }
+        return switch (n % 10) {
+            case 1 -> n + "st";
+            case 2 -> n + "nd";
+            case 3 -> n + "rd";
+            default -> n + "th";
+        };
+    }
+
+    private static BracketTeam resolveSlot(Integer rosterId, Integer highlightedRosterId, Map<Integer, RosterIdentity> identityByRosterId) {
         if (rosterId == null) {
             return null; // not yet determined — fed by a later round of a matchup not yet played
         }
@@ -331,7 +429,126 @@ public class SeasonDataService {
         if (identity == null) {
             return null;
         }
-        return new BracketTeam(identity.ownerUserId(), identity.teamName(), identity.avatarUrl(), rosterId.equals(winnerRosterId));
+        return new BracketTeam(identity.ownerUserId(), identity.teamName(), identity.avatarUrl(), rosterId.equals(highlightedRosterId));
+    }
+
+    /**
+     * Fetches and resolves this season's week-by-week matchups and transaction counts. Empty
+     * for Pick'em (isPickemSeason) and for a season with no fully-scored week yet — Sleeper
+     * publishes league.settings but omits last_scored_leg entirely until at least one week has
+     * concluded (confirmed live), which this treats the same as 0.
+     *
+     * Weeks already present in matchupsCache are never refetched (they're immutable once
+     * final) — only genuinely new weeks trigger Sleeper calls, fetched in parallel via virtual
+     * threads so the wall-clock cost of a first-time backfill stays close to one round trip
+     * instead of one per week. A week whose fetch fails is left out of the cache (not cached as
+     * empty), so it's retried the next time this runs rather than staying permanently blank.
+     */
+    private WeeklyData fetchWeeklyData(String leagueId, SleeperLeague league,
+                                        Map<Integer, RosterIdentity> identityByRosterId, boolean isPickemSeason) {
+        if (isPickemSeason) {
+            return WeeklyData.EMPTY;
+        }
+        int lastScoredLeg = league.settings() != null && league.settings().last_scored_leg() != null
+                ? league.settings().last_scored_leg() : 0;
+        if (lastScoredLeg <= 0) {
+            return WeeklyData.EMPTY;
+        }
+
+        List<Integer> weeksToFetch = IntStream.rangeClosed(1, lastScoredLeg)
+                .filter(week -> !matchupsCache.containsKey(new WeekKey(leagueId, week)))
+                .boxed()
+                .toList();
+        if (!weeksToFetch.isEmpty()) {
+            try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                for (int week : weeksToFetch) {
+                    executor.submit(() -> fetchWeekSafely(leagueId, week));
+                }
+            } // try-with-resources close() blocks until every submitted task finishes
+        }
+
+        List<WeeklyMatchup> weeklyMatchups = new ArrayList<>();
+        Map<Integer, Integer> transactionCountByRosterId = new HashMap<>();
+        for (int week = 1; week <= lastScoredLeg; week++) {
+            WeekKey key = new WeekKey(leagueId, week);
+
+            List<SleeperMatchup> matchups = matchupsCache.get(key);
+            if (matchups != null) {
+                weeklyMatchups.addAll(resolveWeeklyMatchups(week, matchups, identityByRosterId));
+            }
+
+            List<SleeperTransaction> transactions = transactionsCache.get(key);
+            if (transactions != null) {
+                for (SleeperTransaction transaction : transactions) {
+                    if (!COMPLETE_STATUS.equals(transaction.status()) || transaction.roster_ids() == null) {
+                        continue;
+                    }
+                    for (Integer rosterId : transaction.roster_ids()) {
+                        transactionCountByRosterId.merge(rosterId, 1, Integer::sum);
+                    }
+                }
+            }
+        }
+        return new WeeklyData(weeklyMatchups, transactionCountByRosterId);
+    }
+
+    private void fetchWeekSafely(String leagueId, int week) {
+        WeekKey key = new WeekKey(leagueId, week);
+        try {
+            List<SleeperMatchup> matchups = sleeperClient.getMatchups(leagueId, week);
+            matchupsCache.put(key, matchups != null ? matchups : List.of());
+        } catch (RuntimeException ignored) {
+            // Left uncached — see fetchWeeklyData's javadoc.
+        }
+        try {
+            List<SleeperTransaction> transactions = sleeperClient.getTransactions(leagueId, week);
+            transactionsCache.put(key, transactions != null ? transactions : List.of());
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    /**
+     * Pairs one week's roster rows into head-to-head matchups by matchup_id — two rosters
+     * sharing one played each other; anything else (a bye, or malformed data) can't be paired
+     * and is skipped rather than guessed at.
+     */
+    private static List<WeeklyMatchup> resolveWeeklyMatchups(int week, List<SleeperMatchup> matchups,
+                                                               Map<Integer, RosterIdentity> identityByRosterId) {
+        Map<Integer, List<SleeperMatchup>> byMatchupId = matchups.stream()
+                .filter(m -> m.matchup_id() != null)
+                .collect(Collectors.groupingBy(SleeperMatchup::matchup_id, TreeMap::new, Collectors.toList()));
+
+        List<WeeklyMatchup> result = new ArrayList<>();
+        for (List<SleeperMatchup> pair : byMatchupId.values()) {
+            if (pair.size() != 2) {
+                continue;
+            }
+            MatchupSide side1 = resolveMatchupSide(pair.get(0), identityByRosterId);
+            MatchupSide side2 = resolveMatchupSide(pair.get(1), identityByRosterId);
+            if (side1 != null && side2 != null) {
+                result.add(new WeeklyMatchup(week, side1, side2));
+            }
+        }
+        return result;
+    }
+
+    private static MatchupSide resolveMatchupSide(SleeperMatchup matchup, Map<Integer, RosterIdentity> identityByRosterId) {
+        if (matchup.roster_id() == null) {
+            return null;
+        }
+        RosterIdentity identity = identityByRosterId.get(matchup.roster_id());
+        if (identity == null) {
+            return null;
+        }
+        return new MatchupSide(identity.ownerUserId(), identity.teamName(), identity.avatarUrl(),
+                matchup.points() != null ? matchup.points() : 0.0);
+    }
+
+    private record WeekKey(String leagueId, int week) {
+    }
+
+    private record WeeklyData(List<WeeklyMatchup> weeklyMatchups, Map<Integer, Integer> transactionCountByRosterId) {
+        static final WeeklyData EMPTY = new WeeklyData(List.of(), Map.of());
     }
 
     /** A roster's display identity, resolved once per season fetch and reused for both TeamSummary and bracket team slots. */

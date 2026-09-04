@@ -42,6 +42,21 @@ export interface TeamSummary {
   weeklyScores: (number | null)[]
   /** Other Sleeper users with edit access to this same roster, in addition to the primary owner. Usually empty. */
   coManagers: CoManager[]
+  /** FANTASY only: total completed roster transactions (waivers, free agent adds, trades) across every week fetched so far. Always 0 for Pick'em. */
+  transactionCount: number
+}
+
+export interface MatchupSide {
+  ownerUserId: string | null
+  teamName: string
+  avatarUrl: string | null
+  score: number
+}
+
+export interface WeeklyMatchup {
+  week: number
+  team1: MatchupSide
+  team2: MatchupSide
 }
 
 export interface BracketTeam {
@@ -55,8 +70,12 @@ export interface BracketTeam {
 export interface BracketMatchup {
   round: number
   matchupId: number
-  /** When set, this matchup decides a final standing: winner finishes here, loser finishes here + 1. */
+  /** Structural only — non-null marks a placement-deciding matchup, and 1 always marks a bracket's own final. Not a real standing for the toilet bracket; see placementRank/placementLabel for that. */
   placement: number | null
+  /** The real final standing this matchup's better-placed team achieves (the other team finishes one worse). For display ordering. Null when placement is null. */
+  placementRank: number | null
+  /** Ready-to-display pill text ("Championship", "3rd Place", "Toilet Bowl", ...). Null when placement is null. */
+  placementLabel: string | null
   /** null when this slot isn't determined yet — fed by a later round of a matchup not yet played. */
   team1: BracketTeam | null
   team2: BracketTeam | null
@@ -78,6 +97,8 @@ export interface SeasonSummary {
   pickemWeeks: number[]
   /** FANTASY only: both brackets empty when there's nothing to show (Pick'em, or playoffs not yet started). */
   bracket: SeasonBracket
+  /** FANTASY only: every week-by-week matchup fetched so far this season, oldest week first. Empty for Pick'em or before any week has concluded. */
+  weeklyMatchups: WeeklyMatchup[]
 }
 
 export type LeagueType = 'FANTASY' | 'PICKEM'
@@ -182,6 +203,7 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
     ties: number
     pointsFor: number
     pointsAgainst: number
+    transactionCount: number
   }
 
   const byOwner = new Map<string, Accumulator>()
@@ -204,6 +226,7 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
         ties: 0,
         pointsFor: 0,
         pointsAgainst: 0,
+        transactionCount: 0,
       }
 
       if (isNewer) {
@@ -219,6 +242,7 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
       acc.ties += team.ties
       acc.pointsFor += team.pointsFor
       acc.pointsAgainst += team.pointsAgainst
+      acc.transactionCount += team.transactionCount
 
       byOwner.set(ownerKey, acc)
     }
@@ -244,6 +268,7 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
       // A given week number means a different week in different years, so per-week scores can't
       // be meaningfully combined across seasons — "All" always falls back to Total-only display.
       weeklyScores: [],
+      transactionCount: acc.transactionCount,
     }))
 
   return {
@@ -256,5 +281,117 @@ export function aggregateAllSeasons(history: LeagueFamilyHistory): SeasonSummary
     pickemWeeks: [],
     // A combined "All" view has no single season's playoffs to show a bracket for.
     bracket: { winnersBracket: [], toiletBowlBracket: [] },
+    // Ditto for a week-by-week schedule — "All" stays season-total-only.
+    weeklyMatchups: [],
   }
+}
+
+export interface ScoringTrendPoint {
+  week: number
+  score: number
+}
+
+export interface ScoringTrendSeries {
+  leagueFamilyKey: string
+  leagueFamilyDisplayName: string
+  season: string
+  points: ScoringTrendPoint[]
+}
+
+/**
+ * This owner's own score per week, for the most recent season *with any weekly data* in each
+ * FANTASY family they're in (histories are expected already scoped to just the families that
+ * owner appears in — see ManagerProfilePage). Deliberately not just history.seasons[0] — the
+ * newest season is often the current one still in progress with nothing played yet, in which
+ * case this falls back to the newest season that actually has something to show. Matches purely
+ * by MatchupSide.ownerUserId, the team's primary owner — Sleeper's matchup data is per-roster,
+ * not per-manager, so a co-manager's own trend isn't separately attributed today (see
+ * MatchupSide); a known gap, not a bug.
+ */
+export function computeScoringTrends(userId: string, histories: LeagueFamilyHistory[]): ScoringTrendSeries[] {
+  const series: ScoringTrendSeries[] = []
+  for (const history of histories) {
+    if (history.type !== 'FANTASY') {
+      continue
+    }
+    for (const season of history.seasons) {
+      const points: ScoringTrendPoint[] = []
+      for (const matchup of season.weeklyMatchups) {
+        const side =
+          matchup.team1.ownerUserId === userId ? matchup.team1 : matchup.team2.ownerUserId === userId ? matchup.team2 : null
+        if (side) {
+          points.push({ week: matchup.week, score: side.score })
+        }
+      }
+      if (points.length > 0) {
+        points.sort((a, b) => a.week - b.week)
+        series.push({
+          leagueFamilyKey: history.key,
+          leagueFamilyDisplayName: history.displayName,
+          season: season.season,
+          points,
+        })
+        break // newest-with-data only, per this family — see javadoc above
+      }
+    }
+  }
+  return series
+}
+
+export interface HeadToHeadRecord {
+  opponentUserId: string
+  /** The opponent's most-recently-seen team name — a per-season nickname, same convention standings tables already use as the primary label. */
+  opponentTeamName: string
+  opponentAvatarUrl: string | null
+  wins: number
+  losses: number
+  ties: number
+}
+
+/**
+ * This owner's all-time head-to-head record against every specific opponent they've faced,
+ * across every FANTASY season of every family passed in. Same primary-owner-only matching
+ * caveat as computeScoringTrends.
+ */
+export function computeHeadToHead(userId: string, histories: LeagueFamilyHistory[]): HeadToHeadRecord[] {
+  const byOpponent = new Map<string, HeadToHeadRecord>()
+
+  for (const history of histories) {
+    if (history.type !== 'FANTASY') {
+      continue
+    }
+    for (const season of history.seasons) {
+      for (const matchup of season.weeklyMatchups) {
+        const mine =
+          matchup.team1.ownerUserId === userId ? matchup.team1 : matchup.team2.ownerUserId === userId ? matchup.team2 : null
+        if (!mine) {
+          continue
+        }
+        const theirs = mine === matchup.team1 ? matchup.team2 : matchup.team1
+        if (!theirs.ownerUserId) {
+          continue
+        }
+
+        const record = byOpponent.get(theirs.ownerUserId) ?? {
+          opponentUserId: theirs.ownerUserId,
+          opponentTeamName: theirs.teamName,
+          opponentAvatarUrl: theirs.avatarUrl,
+          wins: 0,
+          losses: 0,
+          ties: 0,
+        }
+        // Keep the latest name/avatar seen for this opponent so the label stays current.
+        record.opponentTeamName = theirs.teamName
+        record.opponentAvatarUrl = theirs.avatarUrl
+
+        if (mine.score > theirs.score) record.wins++
+        else if (mine.score < theirs.score) record.losses++
+        else record.ties++
+
+        byOpponent.set(theirs.ownerUserId, record)
+      }
+    }
+  }
+
+  return Array.from(byOpponent.values()).sort((a, b) => b.wins - b.losses - (a.wins - a.losses))
 }

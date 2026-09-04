@@ -237,63 +237,239 @@
   color: var(--text-h);
 }
 
-.brackets {
+.trend-list {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 20px;
+}
+
+.trend-series-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+  margin-bottom: 6px;
+}
+
+.trend-series-season {
+  font-weight: 400;
+  color: var(--text);
+}
+
+.trend-chart {
+  width: 100%;
+  height: 90px;
+  display: block;
+}
+
+.trend-chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.trend-chart-dot {
+  fill: var(--accent);
+}
+
+.head-to-head-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.head-to-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.head-to-head-row:last-child {
+  border-bottom: none;
+}
+
+.head-to-head-record {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.weekly-schedule {
   margin-top: 32px;
 }
 
-.bracket-scroll {
-  overflow-x: auto;
+.week-section + .week-section {
+  margin-top: 20px;
 }
 
-.bracket-rounds {
-  display: flex;
-  gap: 20px;
-  padding: 4px 0;
-}
-
-.bracket-round {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-around;
-  gap: 16px;
-  min-width: 190px;
-}
-
-.bracket-round-title {
-  font-size: 12px;
+.week-section-title {
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  text-align: center;
-  margin-bottom: 4px;
+  margin: 0 0 8px;
 }
 
-.bracket-matchup {
+.week-matchup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.week-matchup {
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
   background: var(--bg);
 }
 
-.bracket-matchup-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--accent);
-  background: var(--accent-bg);
-  padding: 4px 10px;
-  text-align: center;
-}
-
-.bracket-team {
+.week-matchup-side {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  font-size: 14px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.week-matchup-side + .week-matchup-side {
+  border-top: 1px solid var(--border);
+}
+
+.week-matchup-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.week-matchup-team:hover {
+  text-decoration: underline;
+}
+
+.week-matchup-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.week-matchup-side-winner {
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.week-matchup-score {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.brackets {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  margin-top: 32px;
+}
+
+.bracket-section + .bracket-section {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.bracket-scroll {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.bracket-round-headers {
+  display: flex;
+  gap: 46px; /* must match PlayoffBrackets.tsx's COLUMN_GAP so headers stay aligned with their columns */
+}
+
+.bracket-round-title {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+  padding-bottom: 8px;
+}
+
+.bracket-canvas {
+  position: relative;
+}
+
+.bracket-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.bracket-connector {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 2;
+}
+
+.bracket-card {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.bracket-side-games {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.bracket-card-static {
+  position: static;
+  width: 190px;
+  height: 66px;
+}
+
+.bracket-matchup-label {
+  height: 18px;
+  line-height: 18px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-bg);
+  padding: 0 10px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bracket-team {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  min-width: 0;
+  padding: 0 10px;
+  font-size: 13px;
   color: var(--text);
 }
 
@@ -304,7 +480,10 @@
 .bracket-team a {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
   color: inherit;
   text-decoration: none;
 }
@@ -313,18 +492,30 @@
   text-decoration: underline;
 }
 
+.bracket-team-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket-team .avatar {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
 .bracket-team-winner {
   color: var(--text-h);
   font-weight: 600;
 }
 
 .bracket-team-loser {
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
 .bracket-team-tbd {
   font-style: italic;
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
 .manager-profile-header {

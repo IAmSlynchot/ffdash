@@ -22,6 +22,18 @@ public record SleeperLeague(
         String season,
         String status,
         Integer total_rosters,
-        Map<String, Double> scoring_settings
+        Map<String, Double> scoring_settings,
+        LeagueSettings settings
 ) {
+    /**
+     * @param last_scored_leg The last week whose games are fully final — confirmed live: absent
+     *                        entirely (not zero) before any week has concluded, and equal to the
+     *                        season's total week count once complete. SeasonDataService uses this
+     *                        as the boundary for which weeks' matchup/transaction data are safe to
+     *                        fetch and cache forever (immutable) versus not yet worth fetching at
+     *                        all (still being played).
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record LeagueSettings(Integer last_scored_leg) {
+    }
 }

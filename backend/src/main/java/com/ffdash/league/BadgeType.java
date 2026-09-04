@@ -18,12 +18,11 @@ public enum BadgeType {
     TOP_3("Top 3 Finish", BadgeScope.ALL, "Finished a season ranked in the top 3"),
     TOILET_CHAMP("Toilet Bowl Champ", BadgeScope.FANTASY, "Won the toilet bowl — the playoff bracket's consolation bracket for non-playoff teams."),
     PICKINATOR("Ultimate Pickinator", BadgeScope.PICKEM, "Finished a Pick'em season in first place"),
-    // Not yet earnable: needs a season's total roster-transaction count per team, which Sleeper only
-    // exposes via a per-round transactions endpoint (~15-18 calls per completed season) — deferred
-    // rather than adding that fetch/caching cost now. Wired into the type system so it already shows
-    // up anywhere BadgeType is enumerated; LeagueService.computeBadges never awards it yet.
+    // Based on each team's total completed roster transactions (waivers, free agent adds,
+    // trades) across the season, fetched per-week alongside weekly matchup data — see
+    // SeasonDataService.fetchWeeklyData / TeamSummary.transactionCount.
     MICRO_MANAGER("Micro-manager", BadgeScope.FANTASY, "Finished a season with the most roster transactions"),
-    ADVERSITY_SPECIALIST("Adversity Specialist", BadgeScope.FANTASY, "Finished a season with the highest points against");
+    ADVERSITY_SPECIALIST("Adversity Specialist", BadgeScope.FANTASY, "Most scored-against team in a completed season");
 
     private final String title;
     private final BadgeScope scope;

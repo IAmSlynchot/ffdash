@@ -57,4 +57,22 @@ public class SleeperClient {
                 .body(new ParameterizedTypeReference<List<SleeperBracketMatchup>>() {
                 });
     }
+
+    /** One week's matchups (every roster's score, paired up by matchup_id). Empty for a week not yet reached. */
+    public List<SleeperMatchup> getMatchups(String leagueId, int week) {
+        return restClient.get()
+                .uri("/league/{leagueId}/matchups/{week}", leagueId, week)
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<SleeperMatchup>>() {
+                });
+    }
+
+    /** One week's roster transactions (waivers, free agent moves, trades). Empty for a week not yet reached. */
+    public List<SleeperTransaction> getTransactions(String leagueId, int round) {
+        return restClient.get()
+                .uri("/league/{leagueId}/transactions/{round}", leagueId, round)
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<SleeperTransaction>>() {
+                });
+    }
 }

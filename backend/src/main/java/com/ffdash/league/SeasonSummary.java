@@ -10,6 +10,10 @@ import java.util.List;
  *                     unambiguous index-to-week mapping. Empty for FANTASY seasons.
  * @param bracket FANTASY only: this season's playoff brackets. See SeasonBracket for when it's
  *                empty (Pick'em, or playoffs not yet started).
+ * @param weeklyMatchups FANTASY only: every week-by-week head-to-head matchup fetched so far
+ *                        this season, oldest week first. Empty for Pick'em (no head-to-head
+ *                        concept there) and before any week has fully concluded — see
+ *                        SeasonDataService for the fetch/cache mechanism.
  */
 public record SeasonSummary(
         String leagueId,
@@ -19,6 +23,7 @@ public record SeasonSummary(
         int totalRosters,
         List<TeamSummary> teams,
         List<Integer> pickemWeeks,
-        SeasonBracket bracket
+        SeasonBracket bracket,
+        List<WeeklyMatchup> weeklyMatchups
 ) {
 }
