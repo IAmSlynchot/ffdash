@@ -300,21 +300,105 @@
   font-weight: 600;
 }
 
-.weekly-schedule {
+.weekly-view {
   margin-top: 32px;
 }
 
-.week-section + .week-section {
-  margin-top: 20px;
+.weekly-view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
 }
 
-.week-section-title {
-  font-size: 13px;
+.weekly-view-header .card-title {
+  margin: 0;
+}
+
+.week-select {
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.week-highlight-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.week-highlight-card {
+  overflow: hidden;
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.week-highlight-chump {
+  border-color: rgba(224, 82, 82, 0.5);
+  background: rgba(224, 82, 82, 0.1);
+}
+
+.week-highlight-label {
+  display: block;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--accent);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin: 0 0 8px;
+  letter-spacing: 0.03em;
+  margin-bottom: 6px;
+}
+
+.week-highlight-chump .week-highlight-label {
+  color: #e05252;
+}
+
+.week-highlight-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.week-highlight-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  color: var(--text-h);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+a.week-highlight-team:hover {
+  text-decoration: underline;
+}
+
+.week-highlight-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.week-highlight-score {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+@media (max-width: 480px) {
+  .week-highlight-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .week-matchup-grid {
@@ -522,6 +606,7 @@ a.week-matchup-team:hover {
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-bottom: 20px;
 }
 
 .manager-profile-header h2 {
@@ -615,6 +700,7 @@ a.week-matchup-team:hover {
 }
 
 .badge-title {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -652,6 +738,36 @@ a.week-matchup-team:hover {
 .badge-info:hover,
 .badge-info:focus-visible {
   background: var(--accent-bg);
+}
+
+/* Hover/keyboard-focus shows it for free via CSS; a tap has neither, so .badge-tooltip-open
+   (toggled in ManagerProfilePage on click) covers touch devices. */
+.badge-tooltip {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  margin-top: 6px;
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--accent-border);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: normal;
+  text-align: left;
+}
+
+/* Not :hover — mobile browsers apply a "sticky" :hover to a tapped element until something
+   else is tapped, which would fight the JS-driven open/close toggle used for touch below. */
+.badge-info:focus-visible ~ .badge-tooltip,
+.badge-tooltip-open {
+  display: block;
 }
 
 .badge-subtitle {

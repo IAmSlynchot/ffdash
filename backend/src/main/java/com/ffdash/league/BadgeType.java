@@ -8,19 +8,12 @@ package com.ffdash.league;
  * badge can even be earned in.
  */
 public enum BadgeType {
-    // Fantasy placement badges are decided by that season's playoff/toilet-bowl bracket, not
-    // regular-season standings (wins/points) — Pick'em has no playoffs, so its placement badges
-    // (TOP_3 below, PICKINATOR) use the regular-season standings rank instead. See
-    // LeagueService.computeBadges/isTopThree for exactly where that split is applied.
     CHAMPION("Ultimate Championator", BadgeScope.FANTASY, "Won the league's playoff bracket."),
     TOP_SCORER("Top Scorer", BadgeScope.FANTASY, "Scored the most total points of any team in a completed season."),
-    FOUNDING_MEMBER("Founding Member", BadgeScope.ALL, "Played in a league's very first configured season."),
+    FOUNDING_MEMBER("Founding Member", BadgeScope.ALL, "Played in a league's first-ever season."),
     TOP_3("Top 3 Finish", BadgeScope.ALL, "Finished a season ranked in the top 3"),
     TOILET_CHAMP("Toilet Bowl Champ", BadgeScope.FANTASY, "Won the toilet bowl — the playoff bracket's consolation bracket for non-playoff teams."),
     PICKINATOR("Ultimate Pickinator", BadgeScope.PICKEM, "Finished a Pick'em season in first place"),
-    // Based on each team's total completed roster transactions (waivers, free agent adds,
-    // trades) across the season, fetched per-week alongside weekly matchup data — see
-    // SeasonDataService.fetchWeeklyData / TeamSummary.transactionCount.
     MICRO_MANAGER("Micro-manager", BadgeScope.FANTASY, "Finished a season with the most roster transactions"),
     ADVERSITY_SPECIALIST("Adversity Specialist", BadgeScope.FANTASY, "Most scored-against team in a completed season");
 

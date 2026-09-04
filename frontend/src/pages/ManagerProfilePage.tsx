@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   computeHeadToHead,
@@ -23,6 +24,32 @@ const BADGE_GLYPH: Record<EarnedBadge['type'], string> = {
 
 export default function ManagerProfilePage() {
   const { userId } = useParams<{ userId: string }>()
+
+  // Badge descriptions are shown in a small tooltip. Hover/keyboard-focus reveals it via CSS
+  // alone (see .badge-info:hover/:focus-visible in App.css), but neither fires on tap — mobile
+  // needs an explicit open/close toggle instead, tracked here by badge type. Click-outside and
+  // Escape both dismiss it, matching normal tooltip/popover expectations.
+  const [openBadgeInfo, setOpenBadgeInfo] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!openBadgeInfo) return
+
+    function handlePointerDown(e: PointerEvent) {
+      if (!(e.target instanceof Element) || !e.target.closest('.badge-title')) {
+        setOpenBadgeInfo(null)
+      }
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpenBadgeInfo(null)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [openBadgeInfo])
 
   // Re-fetches the full list (rather than passing data via router state) so a
   // direct link or page reload works on its own — cheap given the backend's
@@ -97,6 +124,7 @@ export default function ManagerProfilePage() {
             <ul className="badge-grid">
               {owner.badges.map((badge) => {
                 const [mostRecent, ...older] = badge.earnings
+                const tooltipId = `badge-tooltip-${badge.type}`
                 return (
                   <li key={badge.type} className="badge-item">
                     <span className="badge-glyph" aria-hidden="true">
@@ -106,9 +134,24 @@ export default function ManagerProfilePage() {
                       <span className="badge-title">
                         {badge.title}
                         {older.length > 0 && <span className="badge-count">×{badge.earnings.length}</span>}
-                        <button type="button" className="badge-info" title={badge.description} aria-label={`About ${badge.title}`}>
+                        <button
+                          type="button"
+                          className="badge-info"
+                          title={badge.description}
+                          aria-label={`About ${badge.title}`}
+                          aria-describedby={tooltipId}
+                          aria-expanded={openBadgeInfo === badge.type}
+                          onClick={() => setOpenBadgeInfo((prev) => (prev === badge.type ? null : badge.type))}
+                        >
                           ?
                         </button>
+                        <span
+                          id={tooltipId}
+                          role="tooltip"
+                          className={`badge-tooltip${openBadgeInfo === badge.type ? ' badge-tooltip-open' : ''}`}
+                        >
+                          {badge.description}
+                        </span>
                       </span>
                       {older.length === 0 ? (
                         <span className="badge-subtitle">{mostRecent.subtitle}</span>
