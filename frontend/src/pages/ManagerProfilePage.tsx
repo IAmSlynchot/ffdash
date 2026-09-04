@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   computeHeadToHead,
@@ -7,6 +7,7 @@ import {
   fetchFamilyHistory,
   fetchOwnerCareerSummaries,
   type EarnedBadge,
+  type HeadToHeadRecord,
 } from '../api/leagues'
 import { useApiData } from '../hooks/useApiData'
 import LoadingStatus from '../components/LoadingStatus'
@@ -31,6 +32,34 @@ const BADGE_GLYPH: Record<EarnedBadge['type'], string> = {
 // App.css) to stand apart from the rest of the grid's standard styling.
 const LEGENDARY_BADGES = new Set<EarnedBadge['type']>(['CHAMPION', 'PICKINATOR'])
 
+interface RivalryDescriptor {
+  title: string
+  flavorText: string
+}
+
+/**
+ * A personality-driven name for one rivalry, from `ownerDisplayName`'s perspective. Flavor text
+ * is static per category (not unique per pairing) — see the Rivalry Tracker card. Exhaustive over
+ * wins/losses/ties >= 0 given at least one game played (computeHeadToHead never creates a record
+ * with zero games), so priority order matters: an all-ties record is a Stalemate before either
+ * "zero wins" check can fire, then a literal shutout is Undefeated, then a close two-sided record
+ * is a Certified Rivalry, and only a genuinely lopsided two-sided record gets the "Father" title.
+ */
+function describeRivalry(ownerDisplayName: string, opponentTeamName: string, record: HeadToHeadRecord): RivalryDescriptor {
+  const { wins, losses } = record
+  if (wins === 0 && losses === 0) {
+    return { title: 'Stalemate', flavorText: 'Every meeting ends in a standoff — neither side can find an edge.' }
+  }
+  if (wins === 0 || losses === 0) {
+    return { title: 'Undefeated', flavorText: 'One side has never tasted victory in this matchup.' }
+  }
+  if (Math.abs(wins - losses) <= 1) {
+    return { title: 'Certified Rivalry', flavorText: 'A true coin flip — bragging rights change hands constantly.' }
+  }
+  const dominant = wins > losses ? ownerDisplayName : opponentTeamName
+  return { title: `${dominant} Father`, flavorText: "This one isn't close — one side clearly has the other's number." }
+}
+
 export default function ManagerProfilePage() {
   const { userId } = useParams<{ userId: string }>()
 
@@ -39,6 +68,9 @@ export default function ManagerProfilePage() {
   // needs an explicit open/close toggle instead, tracked here by badge type. Click-outside and
   // Escape both dismiss it, matching normal tooltip/popover expectations.
   const [openBadgeInfo, setOpenBadgeInfo] = useState<string | null>(null)
+
+  // The Rivalry Tracker's selected opponent — see the derivation below, near headToHead.
+  const [manualOpponentId, setManualOpponentId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!openBadgeInfo) return
@@ -81,6 +113,24 @@ export default function ManagerProfilePage() {
     retry: retryFamilies,
   } = useApiData(() => Promise.all(familyKeys.map((key) => fetchFamilyHistory(key))), [familyKeys.join(',')])
 
+  // Computed here (rather than after the early returns below) so the useMemo right after it can
+  // stay an unconditional hook call — react-hooks/rules-of-hooks requires every hook to run in
+  // the same order on every render, which a hook placed after an early `return` would violate.
+  // `owner`/`familyHistories` may still be null this early; both guards make that safely resolve
+  // to an empty list rather than throwing, same as `familyKeys` above already does.
+  const headToHead = owner && familyHistories ? computeHeadToHead(owner.userId, familyHistories) : []
+
+  // manualOpponentId is only ever a user override (via the dropdown or the randomize button);
+  // the actually-displayed selection is derived further down, same pattern as WeeklySchedule's
+  // manualWeek. That means a pick made on a different manager's profile is automatically
+  // invalidated (falls back to a fresh random pick) once `headToHead` no longer contains it —
+  // no reset effect needed even though this page isn't remounted per userId (see App.tsx).
+  const randomOpponentId = useMemo(() => {
+    if (headToHead.length === 0) return null
+    return headToHead[Math.floor(Math.random() * headToHead.length)].opponentUserId
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [owner?.userId, headToHead.length])
+
   if (loading || error || !owners) {
     return <LoadingStatus loading={loading} slow={slow} error={error} retry={retry} subject="manager" />
   }
@@ -91,11 +141,23 @@ export default function ManagerProfilePage() {
 
   // teamName stays null (and is simply not shown) until familyHistories loads — see
   // computeLeagueMemberships. displayName/since/coManagerOnly don't need it, so this card
-  // doesn't wait on that fetch the way the Scoring Trend/Head-to-Head cards below do.
+  // doesn't wait on that fetch the way the Scoring Trend/Rivalry Tracker cards below do.
   const leagues = computeLeagueMemberships(owner.userId, owner.seasonResults, familyHistories ?? [])
 
   const scoringTrends = familyHistories ? computeScoringTrends(owner.userId, familyHistories) : []
-  const headToHead = familyHistories ? computeHeadToHead(owner.userId, familyHistories) : []
+  const rivalsByGamesPlayed = [...headToHead].sort(
+    (a, b) => b.wins + b.losses + b.ties - (a.wins + a.losses + a.ties),
+  )
+  const selectedOpponentId =
+    manualOpponentId && headToHead.some((r) => r.opponentUserId === manualOpponentId) ? manualOpponentId : randomOpponentId
+  const selectedRivalry = headToHead.find((r) => r.opponentUserId === selectedOpponentId) ?? null
+
+  function randomizeOpponent() {
+    if (headToHead.length === 0) return
+    const candidates =
+      headToHead.length > 1 ? headToHead.filter((r) => r.opponentUserId !== selectedOpponentId) : headToHead
+    setManualOpponentId(candidates[Math.floor(Math.random() * candidates.length)].opponentUserId)
+  }
 
   return (
     <div className="manager-profile">
@@ -206,28 +268,98 @@ export default function ManagerProfilePage() {
         </section>
 
         <section className="card">
-          <h3 className="card-title">Head-to-Head</h3>
+          <div className="weekly-view-header">
+            <h3 className="card-title">Rivalry Tracker</h3>
+            {headToHead.length > 0 && (
+              <div className="rivalry-controls">
+                <select
+                  className="week-select"
+                  value={selectedOpponentId ?? ''}
+                  onChange={(e) => setManualOpponentId(e.target.value)}
+                  aria-label="Opponent"
+                >
+                  {rivalsByGamesPlayed.map((r) => (
+                    <option key={r.opponentUserId} value={r.opponentUserId}>
+                      {r.opponentTeamName} ({r.wins}-{r.losses}
+                      {r.ties > 0 ? `-${r.ties}` : ''})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="rivalry-randomize"
+                  onClick={randomizeOpponent}
+                  disabled={headToHead.length <= 1}
+                  aria-label="Pick a random opponent"
+                  title="Pick a random opponent"
+                >
+                  🎲
+                </button>
+              </div>
+            )}
+          </div>
           {familiesLoading || familiesError ? (
             <LoadingStatus loading={familiesLoading} slow={familiesSlow} error={familiesError} retry={retryFamilies} subject="head-to-head history" />
-          ) : headToHead.length === 0 ? (
+          ) : !selectedRivalry ? (
             <p className="card-empty">No head-to-head matchups yet.</p>
           ) : (
-            <ul className="head-to-head-list">
-              {headToHead.map((record) => (
-                <li key={record.opponentUserId} className="head-to-head-row">
-                  <Link to={`/managers/${record.opponentUserId}`} className="manager-link">
-                    {record.opponentAvatarUrl && <img src={record.opponentAvatarUrl} alt="" className="avatar" />}
-                    {record.opponentTeamName}
-                  </Link>
-                  <span className="head-to-head-record">
-                    {record.wins}-{record.losses}
-                    {record.ties > 0 ? `-${record.ties}` : ''}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <RivalryCard owner={owner} rivalry={selectedRivalry} />
           )}
         </section>
+      </div>
+    </div>
+  )
+}
+
+interface RivalryCardProps {
+  owner: { displayName: string; avatarUrl: string | null }
+  rivalry: HeadToHeadRecord
+}
+
+/** The Rivalry Tracker's "vs" detail for one selected opponent — see ManagerProfilePage. */
+function RivalryCard({ owner, rivalry }: RivalryCardProps) {
+  const descriptor = describeRivalry(owner.displayName, rivalry.opponentTeamName, rivalry)
+  const gamesPlayed = rivalry.wins + rivalry.losses + rivalry.ties
+  const winPct = gamesPlayed > 0 ? Math.round((rivalry.wins / gamesPlayed) * 100) : 0
+  const lastMeeting = rivalry.lastMeeting
+  const lastMeetingResult = lastMeeting
+    ? lastMeeting.myScore > lastMeeting.theirScore
+      ? 'Won'
+      : lastMeeting.myScore < lastMeeting.theirScore
+        ? 'Lost'
+        : 'Tied'
+    : null
+
+  return (
+    <div className="rivalry-card">
+      <div className="rivalry-vs">
+        <div className="rivalry-side">
+          {owner.avatarUrl && <img src={owner.avatarUrl} alt="" className="avatar" />}
+          <span className="rivalry-side-name">{owner.displayName}</span>
+        </div>
+        <span className="rivalry-score">
+          {rivalry.wins}-{rivalry.losses}
+          {rivalry.ties > 0 ? `-${rivalry.ties}` : ''}
+        </span>
+        <div className="rivalry-side">
+          {rivalry.opponentAvatarUrl && <img src={rivalry.opponentAvatarUrl} alt="" className="avatar" />}
+          <Link to={`/managers/${rivalry.opponentUserId}`} className="rivalry-side-name">
+            {rivalry.opponentTeamName}
+          </Link>
+        </div>
+      </div>
+      <div className="rivalry-title">{descriptor.title}</div>
+      <p className="rivalry-flavor">{descriptor.flavorText}</p>
+      <div className="rivalry-stats">
+        <span>
+          {gamesPlayed} game{gamesPlayed === 1 ? '' : 's'} played · {winPct}% win rate
+        </span>
+        {lastMeeting && (
+          <span>
+            Last meeting: {lastMeetingResult} {lastMeeting.myScore.toFixed(2)}-{lastMeeting.theirScore.toFixed(2)} ·{' '}
+            {lastMeeting.leagueFamilyDisplayName}, Week {lastMeeting.week} {lastMeeting.season}
+          </span>
+        )}
       </div>
     </div>
   )

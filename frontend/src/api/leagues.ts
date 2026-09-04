@@ -405,6 +405,14 @@ export function computeLeagueMemberships(
   })
 }
 
+export interface HeadToHeadLastMeeting {
+  leagueFamilyDisplayName: string
+  season: string
+  week: number
+  myScore: number
+  theirScore: number
+}
+
 export interface HeadToHeadRecord {
   opponentUserId: string
   /** The opponent's most-recently-seen team name — a per-season nickname, same convention standings tables already use as the primary label. */
@@ -413,6 +421,8 @@ export interface HeadToHeadRecord {
   wins: number
   losses: number
   ties: number
+  /** The single most recent game against this opponent, across every FANTASY season/family passed in. */
+  lastMeeting: HeadToHeadLastMeeting | null
 }
 
 /**
@@ -446,6 +456,7 @@ export function computeHeadToHead(userId: string, histories: LeagueFamilyHistory
           wins: 0,
           losses: 0,
           ties: 0,
+          lastMeeting: null,
         }
         // Keep the latest name/avatar seen for this opponent so the label stays current.
         record.opponentTeamName = theirs.teamName
@@ -454,6 +465,23 @@ export function computeHeadToHead(userId: string, histories: LeagueFamilyHistory
         if (mine.score > theirs.score) record.wins++
         else if (mine.score < theirs.score) record.losses++
         else record.ties++
+
+        // Iteration order alone can't be trusted for "most recent" — histories are
+        // newest-season-first but different families interleave, so this needs an
+        // explicit (season, week) comparison rather than just keeping the last one seen.
+        const isNewer =
+          !record.lastMeeting ||
+          season.season > record.lastMeeting.season ||
+          (season.season === record.lastMeeting.season && matchup.week > record.lastMeeting.week)
+        if (isNewer) {
+          record.lastMeeting = {
+            leagueFamilyDisplayName: history.displayName,
+            season: season.season,
+            week: matchup.week,
+            myScore: mine.score,
+            theirScore: theirs.score,
+          }
+        }
 
         byOpponent.set(theirs.ownerUserId, record)
       }
