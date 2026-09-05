@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { MatchupSide, WeeklyMatchup } from '../api/leagues'
+import ChumpOMeter from './ChumpOMeter'
 
 interface WeeklyScheduleProps {
   weeklyMatchups: WeeklyMatchup[]
@@ -42,6 +43,15 @@ export default function WeeklySchedule({ weeklyMatchups, status, currentWeek }: 
   const matchups = byWeek.find(([week]) => week === selectedWeek)?.[1] ?? []
   const { champ, chump } = findWeekExtremes(matchups)
   const weekNotStarted = matchups.length > 0 && matchups.every((m) => m.team1.score === 0 && m.team2.score === 0)
+  // True while the *selected* week is the season's live current week. Note this can't also
+  // check "not already in weeksWithData" the way it used to read — SeasonDataService now always
+  // merges the live week's matchups into the same weeklyMatchups list (that's what makes the
+  // matchup grid above show its pairings before it's scored), so weeksWithData includes
+  // currentWeek as soon as it has any pairings at all, live or final. The one edge case this
+  // misses: the brief window right after currentWeek is fully scored but before Sleeper's own
+  // settings.leg has advanced to the next week — the Meter would still show for a technically-
+  // decided week there, which is harmless (it just shows the final positions) rather than wrong.
+  const isViewingLiveWeek = isLive && currentWeek !== null && selectedWeek === currentWeek
 
   return (
     <section className="card">
@@ -64,6 +74,7 @@ export default function WeeklySchedule({ weeklyMatchups, status, currentWeek }: 
         <p className="card-empty">No matchups scheduled yet this week.</p>
       ) : (
         <>
+          {isViewingLiveWeek && <ChumpOMeter matchups={matchups} />}
           {/* A week whose games haven't kicked off yet still has real pairings (Sleeper sets the
               full schedule upfront) but every score is a real 0 — not "0-0 tie", just "hasn't
               played". Crowning a Champ/Chump off that would be meaningless, so skip the

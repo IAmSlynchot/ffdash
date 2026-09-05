@@ -39,9 +39,8 @@ export default function ManagerProfilePage() {
     return <p className="status-message">Manager not found.</p>
   }
 
-  // teamName stays null (and is simply not shown) until familyHistories loads — see
-  // computeLeagueMemberships. displayName/since/coManagerOnly don't need it, so this card
-  // doesn't wait on that fetch the way the Scoring Trend/Rivalry Tracker cards below do.
+  // displayName/since/coManagerOnly all come from seasonResults alone, so this card doesn't wait
+  // on familyHistories the way the Scoring Trend/Rivalry Tracker cards below do.
   const leagues = computeLeagueMemberships(owner.userId, owner.seasonResults, familyHistories ?? [])
 
   const scoringTrends = familyHistories ? computeScoringTrends(owner.userId, familyHistories) : []
@@ -58,14 +57,13 @@ export default function ManagerProfilePage() {
         <section className="card">
           <h3 className="card-title">As seen in...</h3>
           <ul className="league-card-grid">
-            {leagues.map(({ key, displayName, teamName, since, coManagerOnly }) => (
+            {leagues.map(({ key, displayName, since, coManagerOnly }) => (
               <li key={key}>
                 <Link to={`/leagues/${key}`} className="league-card">
                   <span className="league-card-name">
                     {displayName}
                     {coManagerOnly && <span className="co-manager-tag"> (co-manager)</span>}
                   </span>
-                  {teamName && <span className="league-card-team">{teamName}</span>}
                   <span className="league-card-since">Since {since}</span>
                 </Link>
               </li>

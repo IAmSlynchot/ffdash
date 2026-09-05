@@ -7,6 +7,11 @@
   --accent: #aa3bff;
   --accent-bg: rgba(170, 59, 255, 0.1);
   --accent-border: rgba(170, 59, 255, 0.5);
+  /* Secondary accent (aquamarine) — a deliberate alternate to --accent for spots that want to
+     stand apart from the app's otherwise-purple-everywhere palette, not a replacement for it. */
+  --accent2: #00c896;
+  --accent2-bg: rgba(0, 200, 150, 0.1);
+  --accent2-border: rgba(0, 200, 150, 0.5);
   --gold: #a5760a;
   --gold-bg: rgba(212, 160, 23, 0.14);
   --gold-border: rgba(212, 160, 23, 0.55);
@@ -43,6 +48,9 @@
     --accent: #c084fc;
     --accent-bg: rgba(192, 132, 252, 0.15);
     --accent-border: rgba(192, 132, 252, 0.5);
+    --accent2: #33e6b8;
+    --accent2-bg: rgba(51, 230, 184, 0.15);
+    --accent2-border: rgba(51, 230, 184, 0.5);
     --gold: #f0c040;
     --gold-bg: rgba(240, 192, 64, 0.16);
     --gold-border: rgba(240, 192, 64, 0.55);

@@ -60,7 +60,7 @@
 
 .league-nav {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
   border-bottom: 1px solid var(--border);
   margin-bottom: 24px;
@@ -70,8 +70,8 @@
 .league-nav-tab {
   display: inline-block;
   font: inherit;
-  font-size: 16px;
-  padding: 8px 16px;
+  font-size: 14px;
+  padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: transparent;
@@ -79,6 +79,19 @@
   text-decoration: none;
   cursor: pointer;
   transition: border-color 0.2s, color 0.2s;
+}
+
+/* At narrow widths, tighten further so all of a league family's tabs still fit on one row
+   instead of wrapping — league display names can be long ("Fuzzy Handcuffs", "Pick Six(teen)"). */
+@media (max-width: 480px) {
+  .league-nav {
+    gap: 4px;
+  }
+
+  .league-nav-tab {
+    font-size: 13px;
+    padding: 5px 10px;
+  }
 }
 
 .league-nav-tab:hover {
@@ -212,7 +225,8 @@
 .team-cell {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
   color: var(--text-h);
 }
 
@@ -528,6 +542,133 @@ a.rivalry-side-name:hover {
   color: var(--text-h);
 }
 
+/* A racing-minimap-style trend bar for the live week — every team's avatar placed between
+   "Chump" (red) and "Champ" (aquamarine, --accent2) by current score. This is the app's first
+   use of the secondary accent color — deliberately set apart from the purple --accent used
+   everywhere else, rather than another purple thing. See ChumpOMeter.tsx. */
+.chump-o-meter {
+  margin-bottom: 16px;
+  padding: 10px 14px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  /* Deliberately neutral (not accent/accent2/red) — the bar itself already carries two colors
+     plus the avatars, so the widget's own container stays a plain offset panel rather than
+     introducing a third. Adapts with the theme since it's mixed from existing tokens. */
+  background: color-mix(in srgb, var(--text-h) 5%, var(--bg));
+}
+
+.chump-o-meter-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.chump-o-meter-track {
+  position: relative;
+  height: 56px;
+}
+
+.chump-o-meter-track::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #e05252, var(--accent2));
+  transform: translateY(-50%);
+}
+
+.chump-o-meter-avatar {
+  position: absolute;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--accent2-bg);
+  cursor: pointer;
+  /* Deliberately no overflow:hidden here — the tooltip below is a child of this button,
+     absolutely positioned to float above it (bottom: 100%), and a parent overflow:hidden would
+     silently clip it away even though its display toggle still worked. The image/fallback clip
+     themselves into circles instead (border-radius below), so the button doesn't need to.
+     left is set inline per-avatar from its score; --chump-o-meter-dx/dy are the tie-cascade
+     offset (0 for a lone avatar), also set inline — see ChumpOMeter.tsx. */
+  transform: translate(calc(-50% + var(--chump-o-meter-dx, 0px)), calc(-50% + var(--chump-o-meter-dy, 0px)));
+}
+
+.chump-o-meter-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.chump-o-meter-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent2);
+}
+
+.chump-o-meter-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  z-index: 20;
+  margin-bottom: 6px;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 160px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--accent2-border);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: normal;
+  text-align: center;
+}
+
+/* Not :hover — mobile browsers apply a "sticky" :hover to a tapped element until something else
+   is tapped, which would fight the JS-driven open/close toggle used for touch (see .badge-info's
+   identical note). Mouse hover is covered separately by the avatar button's native title. */
+.chump-o-meter-avatar:focus-visible .chump-o-meter-tooltip,
+.chump-o-meter-tooltip-open {
+  display: block;
+}
+
+.chump-o-meter-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.chump-o-meter-label-chump {
+  color: #e05252;
+}
+
+.chump-o-meter-label-champ {
+  color: var(--accent2);
+}
+
 .week-highlight-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -548,6 +689,13 @@ a.rivalry-side-name:hover {
   background: rgba(224, 82, 82, 0.1);
 }
 
+/* Champ of the Week now matches the Chump-o-Meter's own red/aquamarine pairing instead of the
+   default purple --accent, so "Champ" means the same color everywhere it appears. */
+.week-highlight-champ {
+  border-color: var(--accent2-border);
+  background: var(--accent2-bg);
+}
+
 .week-highlight-label {
   display: block;
   font-size: 12px;
@@ -560,6 +708,10 @@ a.rivalry-side-name:hover {
 
 .week-highlight-chump .week-highlight-label {
   color: #e05252;
+}
+
+.week-highlight-champ .week-highlight-label {
+  color: var(--accent2);
 }
 
 .week-highlight-body {
@@ -825,14 +977,11 @@ a.week-matchup-team:hover {
   margin: 0;
   padding: 0;
   display: grid;
+  /* Always 3 columns, even on narrow screens — with just the league name + "Since ..." now
+     (no team name), each card is short enough that 3-in-a-row stays legible rather than needing
+     to collapse to one per row. */
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-}
-
-@media (max-width: 640px) {
-  .league-card-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* Grid items stretch to fill their row by default, but a percentage height on .league-card
@@ -863,11 +1012,6 @@ a.week-matchup-team:hover {
 .league-card-name {
   font-weight: 600;
   color: var(--accent);
-}
-
-.league-card-team {
-  font-size: 13px;
-  color: var(--text-h);
 }
 
 .league-card-since {

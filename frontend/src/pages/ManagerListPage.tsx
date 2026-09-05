@@ -15,7 +15,7 @@ export default function ManagerListPage() {
       <table className="standings-table">
         <thead>
           <tr>
-            <th>Manager</th>
+            <th className="team-col">Manager</th>
             <th>Leagues</th>
             <th>W</th>
             <th>L</th>
