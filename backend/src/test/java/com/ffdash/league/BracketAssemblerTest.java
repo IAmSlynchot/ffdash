@@ -66,6 +66,39 @@ class BracketAssemblerTest {
         assertThat(BracketAssembler.deriveToiletBowlChampion(List.of())).isNull();
     }
 
+    // ---- deriveFinalStandings ----
+
+    @Test
+    void deriveFinalStandingsCombinesBothBracketsWithToiletBracketFullyReversedIncludingItsOwnFinal() {
+        // Winners bracket: settles 1st-4th (winnersBracketSize = 4), so the toilet bracket's real
+        // standings should start at 5th.
+        List<SleeperBracketMatchup> winnersBracket = List.of(
+                matchup(3, 1, 1, 2, 1, 2, 1), // championship
+                matchup(3, 2, 3, 4, 3, 4, 3)  // 3rd place game
+        );
+        // Toilet bracket, same shape as buildSeasonBracket's own toilet-bracket test: m=1 is a
+        // non-final placement game (roster 10 escaped by losing, so gets the better standing),
+        // m=2 is the toilet bowl's own final (roster 13 "won" it by losing/advancing the most,
+        // so — unlike buildSeasonBracket's *display* highlight — gets the single WORST standing
+        // of anyone, not a good one).
+        List<SleeperBracketMatchup> losersBracket = List.of(
+                matchup(1, 1, 10, 11, 11, 10, 3),
+                matchup(2, 2, 12, 13, 13, 12, 1)
+        );
+
+        Map<Integer, Integer> standings = BracketAssembler.deriveFinalStandings(winnersBracket, losersBracket);
+
+        assertThat(standings).containsExactlyInAnyOrderEntriesOf(Map.ofEntries(
+                Map.entry(1, 1), Map.entry(2, 2), Map.entry(3, 3), Map.entry(4, 4),
+                Map.entry(10, 5), Map.entry(11, 6), Map.entry(12, 7), Map.entry(13, 8)
+        ));
+    }
+
+    @Test
+    void deriveFinalStandingsIsEmptyWhenNeitherBracketHasPlacementGamesYet() {
+        assertThat(BracketAssembler.deriveFinalStandings(List.of(), List.of())).isEmpty();
+    }
+
     // ---- buildSeasonBracket ----
 
     @Test

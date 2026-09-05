@@ -94,23 +94,41 @@ public class SeasonDataService {
         Integer currentWeek = isPickemSeason || league.settings() == null ? null : league.settings().leg();
         WeeklyData weeklyData = fetchWeeklyData(leagueId, league, identityByRosterId, isPickemSeason, currentWeek);
 
+        // For a complete FANTASY season, "standings" means the real final placement — playoff and
+        // toilet bowl outcomes, not the regular-season record that stopped meaning anything once
+        // the playoffs actually happened. Empty (Pick'em, or a complete season Sleeper somehow has
+        // no bracket data for) falls back to the regular-season order below, same as an in-progress
+        // season always does — see BracketAssembler.deriveFinalStandings.
+        Map<Integer, Integer> finalStandingsByRosterId = COMPLETE_STATUS.equals(league.status())
+                ? BracketAssembler.deriveFinalStandings(winnersBracketRaw, losersBracketRaw)
+                : Map.of();
+
         List<TeamSummary> ranked = rosters.stream()
-                .map(roster -> toTeamSummary(
-                        roster, usersById.get(roster.owner_id()),
-                        placementByRosterId.get(roster.roster_id()),
-                        roster.roster_id().equals(toiletBowlChampionRosterId),
-                        pickemWeeks,
-                        resolveCoManagers(roster, usersById),
-                        weeklyData.transactionCountByRosterId().getOrDefault(roster.roster_id(), 0)
+                .map(roster -> new RankableTeam(
+                        toTeamSummary(
+                                roster, usersById.get(roster.owner_id()),
+                                placementByRosterId.get(roster.roster_id()),
+                                roster.roster_id().equals(toiletBowlChampionRosterId),
+                                pickemWeeks,
+                                resolveCoManagers(roster, usersById),
+                                weeklyData.transactionCountByRosterId().getOrDefault(roster.roster_id(), 0)
+                        ),
+                        roster.roster_id()
                 ))
                 .sorted(
-                        Comparator.comparingInt(TeamSummary::wins).reversed()
-                                .thenComparing(Comparator.comparingDouble(TeamSummary::pointsFor).reversed())
+                        finalStandingsByRosterId.isEmpty()
+                                ? Comparator.comparingInt((RankableTeam rt) -> rt.team().wins()).reversed()
+                                        .thenComparing(Comparator.comparingDouble((RankableTeam rt) -> rt.team().pointsFor()).reversed())
+                                // A roster somehow missing from the bracket data (partial/malformed Sleeper
+                                // response) sorts last rather than crashing or silently misplacing it.
+                                : Comparator.comparingInt(rt -> finalStandingsByRosterId.getOrDefault(rt.rosterId(), Integer.MAX_VALUE))
                 )
+                .map(RankableTeam::team)
                 .toList();
 
-        // 1-based placement from the sort order above. For FANTASY this is wins-then-points, the
-        // only ranking signal Sleeper's API gives us. For Pick'em, wins is always 0 (no such
+        // 1-based placement from the sort order above. For an in-progress FANTASY season, or one
+        // with no bracket data, this is wins-then-points, the only ranking signal Sleeper's API
+        // gives us before/absent real playoff results. For Pick'em, wins is always 0 (no such
         // concept there — see toTeamSummary), so this degenerates to a pure points-desc sort,
         // which is exactly right since pointsFor holds the season-total Pick'em score in that case.
         List<TeamSummary> teams = IntStream.range(0, ranked.size())
@@ -177,6 +195,11 @@ public class SeasonDataService {
                 coManagers,
                 transactionCount
         );
+    }
+
+    /** Pairs a built TeamSummary with the roster_id it came from, purely so fetchAndJoin's sort
+     * can key off finalStandingsByRosterId (roster_id isn't itself a TeamSummary field). */
+    private record RankableTeam(TeamSummary team, int rosterId) {
     }
 
     private static TeamSummary withRank(TeamSummary team, int rank) {

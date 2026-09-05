@@ -78,6 +78,45 @@ final class BracketAssembler {
     }
 
     /**
+     * Every roster's real final standing for a complete season (1 = champion, N = worst),
+     * combining both brackets — this is what LeagueView's standings table sorts by for a
+     * complete FANTASY season, in place of the regular-season wins/points ranking that's only
+     * a meaningful "standing" while the season (and its playoffs) are still in progress.
+     * <p>
+     * The winners bracket needs no extra work — derivePlacements already has it in the right
+     * orientation (w() is always the better finisher there). The toilet/losers bracket needs its
+     * own pass rather than reusing resolveMatchups' flip logic: that logic exists to pick which
+     * team's box is highlighted in the bracket *display*, and deliberately leaves the toilet
+     * bowl's own final un-flipped there (Sleeper's recorded winner really is the one shown
+     * "winning" that box, however dubious the prize — see resolveMatchups). But the real final
+     * STANDING is the opposite: the team that keeps winning its way deeper into the toilet
+     * bracket, including its own final, ends up with the WORST standing, not the best — so for
+     * every toilet-bracket placement game, final included, the real better finisher is l(), not
+     * w(), with no isFinal exception.
+     */
+    static Map<Integer, Integer> deriveFinalStandings(List<SleeperBracketMatchup> winnersBracket,
+                                                        List<SleeperBracketMatchup> losersBracket) {
+        Map<Integer, Integer> standings = new HashMap<>(derivePlacements(winnersBracket));
+
+        List<SleeperBracketMatchup> toiletPlacementGames = losersBracket.stream()
+                .filter(matchup -> matchup.p() != null)
+                .sorted(Comparator.comparingInt(SleeperBracketMatchup::p).reversed())
+                .toList();
+
+        int rank = winnersBracketSize(winnersBracket) + 1;
+        for (SleeperBracketMatchup matchup : toiletPlacementGames) {
+            if (matchup.l() != null) {
+                standings.put(matchup.l(), rank);
+            }
+            if (matchup.w() != null) {
+                standings.put(matchup.w(), rank + 1);
+            }
+            rank += 2;
+        }
+        return standings;
+    }
+
+    /**
      * Builds both display-ready brackets from the raw Sleeper matchup lists, resolving each
      * team slot's roster_id via identityByRosterId. Deliberately empty (SeasonBracket.EMPTY)
      * unless at least one matchup in either bracket has actually been played (a non-null
@@ -97,15 +136,21 @@ final class BracketAssembler {
         // placements leave off (e.g. a 6-team winners bracket settles 1st-6th, so the toilet
         // bracket starts at 7th) — see derivePlacementRanks for why its own placements need
         // recomputing rather than just offsetting Sleeper's raw p.
-        int winnersBracketSize = winnersRaw.stream()
+        return new SeasonBracket(
+                resolveMatchups(winnersRaw, identityByRosterId, false, 0),
+                resolveMatchups(losersRaw, identityByRosterId, true, winnersBracketSize(winnersRaw))
+        );
+    }
+
+    /** How many roster slots the winners bracket itself settles (e.g. 6 for a 6-team playoff
+     * bracket) — both buildSeasonBracket (to offset the toilet bracket's own numbering) and
+     * deriveFinalStandings (to offset the toilet bracket's real final standings) need this. */
+    private static int winnersBracketSize(List<SleeperBracketMatchup> winnersBracket) {
+        return winnersBracket.stream()
                 .filter(m -> m.p() != null)
                 .mapToInt(m -> m.p() + 1)
                 .max()
                 .orElse(0);
-        return new SeasonBracket(
-                resolveMatchups(winnersRaw, identityByRosterId, false, 0),
-                resolveMatchups(losersRaw, identityByRosterId, true, winnersBracketSize)
-        );
     }
 
     private static List<BracketMatchup> resolveMatchups(List<SleeperBracketMatchup> raw,
