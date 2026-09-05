@@ -98,17 +98,29 @@ export default function LeagueView({ leagueKey }: LeagueViewProps) {
                   <tr key={team.ownerUserId ?? team.teamName}>
                     <td className="rank-cell">{team.rank}</td>
                     <td className="team-cell">
-                      {team.ownerUserId ? (
-                        <Link to={`/managers/${team.ownerUserId}`} className="manager-link">
-                          {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
-                          {team.teamName}
-                        </Link>
-                      ) : (
-                        <>
-                          {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
-                          {team.teamName}
-                        </>
-                      )}
+                      {/* Name + buy-in badge are grouped and kept on one line on purpose — this
+                          table always needs horizontal scroll on narrow screens anyway (see
+                          .standings-table-scroll), so it's fine for this group to stay wide
+                          rather than let the badge wrap under the name. Co-managers, which can
+                          get long, are the one part still allowed to drop to its own line. */}
+                      <span className="team-name-group">
+                        {team.ownerUserId ? (
+                          <Link to={`/managers/${team.ownerUserId}`} className="manager-link">
+                            {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
+                            {team.teamName}
+                          </Link>
+                        ) : (
+                          <>
+                            {team.avatarUrl && <img src={team.avatarUrl} alt="" className="avatar" />}
+                            {team.teamName}
+                          </>
+                        )}
+                        {isPickem && team.boughtIn && (
+                          <span className="buyin-badge" title="Paid the buy-in — eligible for prize money">
+                            Buy-in
+                          </span>
+                        )}
+                      </span>
                       {team.coManagers.length > 0 && (
                         <span className="co-managers">
                           w/{' '}
@@ -118,11 +130,6 @@ export default function LeagueView({ leagueKey }: LeagueViewProps) {
                               <Link to={`/managers/${co.userId}`}>{co.displayName}</Link>
                             </span>
                           ))}
-                        </span>
-                      )}
-                      {isPickem && team.boughtIn && (
-                        <span className="buyin-badge" title="Paid the buy-in — eligible for prize money">
-                          Buy-in
                         </span>
                       )}
                     </td>

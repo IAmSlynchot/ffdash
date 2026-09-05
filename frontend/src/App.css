@@ -183,6 +183,12 @@
 
 .standings-table-scroll {
   overflow-x: auto;
+  /* Neutral panel background, distinct from the page/card behind it (both are plain --bg) —
+     gives .total-col's accent background something to stand out from that isn't just the page
+     itself, so that column reads as "highlighted within this table" rather than "popping out of
+     everything". Same color-mix recipe as .chump-o-meter's own neutral panel. */
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text-h) 4%, var(--bg));
 }
 
 .standings-table {
@@ -219,7 +225,7 @@
 
 .standings-table td:not(.team-cell),
 .standings-table th:not(.team-col) {
-  text-align: right;
+  text-align: center;
 }
 
 .team-cell {
@@ -228,6 +234,14 @@
   flex-wrap: wrap;
   gap: 4px 8px;
   color: var(--text-h);
+}
+
+.team-name-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  gap: 8px;
 }
 
 .avatar {
