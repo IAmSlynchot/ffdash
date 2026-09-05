@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { ScoringTrendPoint } from '../api/aggregations'
 
 const CHART_WIDTH = 600
@@ -9,8 +10,36 @@ interface ScoringTrendChartProps {
 }
 
 /** A minimal SVG line chart of one season's week-by-week scores — no charting library, just a
- * hand-plotted polyline scaled to a fixed viewBox (CSS stretches it responsively). */
+ * hand-plotted polyline scaled to a fixed viewBox (CSS stretches it responsively). Each point
+ * gets an invisible HTML hit-target overlaid at its exact plotted position (in percent, so it
+ * tracks the SVG's own responsive stretch) rather than relying on the browser's native SVG
+ * <title> tooltip — that shows only on hover, only after its own built-in delay, and never on
+ * tap; this shows instantly on hover and supports tap too. */
 export default function ScoringTrendChart({ points }: ScoringTrendChartProps) {
+  // Tap-to-toggle for touch (mirrors BadgeGrid/ChumpOMeter's identical pattern); hover/focus show
+  // it instantly via CSS alone, no JS involved for that path.
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (openIndex === null) return
+
+    function handlePointerDown(e: PointerEvent) {
+      if (!(e.target instanceof Element) || !e.target.closest('.trend-chart-point')) {
+        setOpenIndex(null)
+      }
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpenIndex(null)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [openIndex])
+
   if (points.length === 0) {
     return null
   }
@@ -31,13 +60,32 @@ export default function ScoringTrendChart({ points }: ScoringTrendChartProps) {
   const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`).join(' ')
 
   return (
-    <svg className="trend-chart" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} preserveAspectRatio="none" role="img">
-      <path className="trend-chart-line" d={linePath} />
-      {coords.map((c, i) => (
-        <circle key={i} className="trend-chart-dot" cx={c.x} cy={c.y} r={3}>
-          <title>{`Week ${c.point.week}: ${c.point.score.toFixed(2)}`}</title>
-        </circle>
-      ))}
-    </svg>
+    <div className="trend-chart-wrap">
+      <svg className="trend-chart" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} preserveAspectRatio="none" role="img">
+        <path className="trend-chart-line" d={linePath} />
+        {coords.map((c, i) => (
+          <circle key={i} className="trend-chart-dot" cx={c.x} cy={c.y} r={3} />
+        ))}
+      </svg>
+      <div className="trend-chart-points">
+        {coords.map((c, i) => {
+          const isOpen = openIndex === i
+          const label = `Week ${c.point.week}: ${c.point.score.toFixed(2)}`
+          return (
+            <button
+              key={i}
+              type="button"
+              className="trend-chart-point"
+              style={{ left: `${(c.x / CHART_WIDTH) * 100}%`, top: `${(c.y / CHART_HEIGHT) * 100}%` }}
+              aria-label={label}
+              aria-expanded={isOpen}
+              onClick={() => setOpenIndex((prev) => (prev === i ? null : i))}
+            >
+              <span className={`trend-chart-tooltip${isOpen ? ' trend-chart-tooltip-open' : ''}`}>{label}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }

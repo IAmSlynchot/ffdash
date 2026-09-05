@@ -282,22 +282,47 @@
 
 /* ===== Scoring Trend ===== */
 
-.trend-list {
+.trend-controls {
   display: flex;
-  flex-direction: column;
-  gap: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 16px;
 }
 
-.trend-series-title {
+.trend-family-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Same pill recipe as .league-nav-tab, but its own class — these filter the card's own content
+   rather than navigating anywhere, so they're <button>s, not links. */
+.trend-family-tab {
+  font: inherit;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--text-h);
-  margin-bottom: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
 }
 
-.trend-series-season {
-  font-weight: 400;
-  color: var(--text);
+.trend-family-tab:hover {
+  border-color: var(--accent-border);
+}
+
+.trend-family-tab.active {
+  border-color: var(--accent);
+  color: var(--text-h);
+  background: var(--accent-bg);
+}
+
+.trend-chart-wrap {
+  position: relative;
 }
 
 .trend-chart {
@@ -314,6 +339,54 @@
 
 .trend-chart-dot {
   fill: var(--accent);
+}
+
+/* Invisible hit-targets laid over the SVG at each dot's exact plotted position (in percent, so
+   they track the chart's own responsive stretch) — see ScoringTrendChart.tsx for why this
+   replaces the native SVG <title> tooltip (delayed, no tap support). */
+.trend-chart-points {
+  position: absolute;
+  inset: 0;
+}
+
+.trend-chart-point {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+
+.trend-chart-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  z-index: 20;
+  margin-bottom: 6px;
+  transform: translateX(-50%);
+  width: max-content;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--accent-border);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  color: var(--text-h);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Unlike BadgeGrid/ChumpOMeter's tooltips (native title covers hover there), this one shows on
+   :hover too — an instant, styled replacement for the native SVG <title> delay, not just a
+   tap/keyboard fallback. */
+.trend-chart-point:hover .trend-chart-tooltip,
+.trend-chart-point:focus-visible .trend-chart-tooltip,
+.trend-chart-tooltip-open {
+  display: block;
 }
 
 /* ===== Rivalry Tracker ===== */
@@ -972,31 +1045,68 @@ a.week-matchup-team:hover {
   margin: 0;
 }
 
-.league-card-grid {
-  list-style: none;
+/* Below 640px: a small carousel, one league card at a time, plus prev/next + position (see
+   ManagerProfilePage's leagueCardStep/currentLeagueIndex). At 640px and up there's room to just
+   show every league as its own card in one centered row instead — see the min-width block near
+   .league-card below, which is what actually switches the display between the two. */
+.league-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.league-card-header .card-title {
   margin: 0;
+}
+
+.league-card-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.league-card-nav-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   padding: 0;
-  display: grid;
-  /* Always 3 columns, even on narrow screens — with just the league name + "Since ..." now
-     (no team name), each card is short enough that 3-in-a-row stays legible rather than needing
-     to collapse to one per row. */
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  font-size: 16px;
+  line-height: 1;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.league-card-nav-button:hover {
+  border-color: var(--accent-border);
+}
+
+.league-card-position {
+  min-width: 32px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-align: center;
+}
+
+.league-card-list {
+  display: flex;
   gap: 10px;
 }
 
-/* Grid items stretch to fill their row by default, but a percentage height on .league-card
-   itself (an only-child of an auto-sized <li>) is an indeterminate circular reference — making
-   the <li> a flex container instead lets it stretch its one child reliably, no percentage needed. */
-.league-card-grid > li {
-  display: flex;
-}
-
+/* Hidden by default (mobile carousel) — only .league-card-current is shown; see the min-width
+   block below for the switch to "show every card at once". */
 .league-card {
-  display: flex;
+  display: none;
   flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: 8px;
   border: 1px solid var(--accent-border);
   background: var(--accent-bg);
@@ -1005,8 +1115,35 @@ a.week-matchup-team:hover {
   transition: border-color 0.2s, background 0.2s;
 }
 
+.league-card-current {
+  display: flex;
+}
+
 .league-card:hover {
   border-color: var(--accent);
+}
+
+@media (min-width: 640px) {
+  /* Every league fits in one row at this width, so the carousel nav has nothing left to do. */
+  .league-card-nav {
+    display: none;
+  }
+
+  .league-card-list {
+    justify-content: center;
+  }
+
+  .league-card {
+    display: flex;
+    flex: 0 1 220px;
+  }
+}
+
+.league-card-name-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
 }
 
 .league-card-name {

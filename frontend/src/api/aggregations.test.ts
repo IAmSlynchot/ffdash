@@ -99,30 +99,44 @@ describe('aggregateAllSeasons', () => {
 // ---- computeScoringTrends ----
 
 describe('computeScoringTrends', () => {
-  it('falls back to the newest season that actually has weekly data, not just the newest season', () => {
+  it('returns one entry per season that actually has weekly data, skipping seasons with none', () => {
     const inProgress2025 = season({ season: '2025', teams: [], weeklyMatchups: [] }) // nothing played yet
     const complete2024 = season({
       season: '2024',
       teams: [],
       weeklyMatchups: [matchup(1, side('u1', 'Me', 100), side('u2', 'Them', 90))],
     })
-    const history = family({ key: 'depot', seasons: [inProgress2025, complete2024] })
+    const complete2023 = season({
+      season: '2023',
+      teams: [],
+      weeklyMatchups: [matchup(1, side('u1', 'Me', 80), side('u2', 'Them', 70))],
+    })
+    const history = family({ key: 'depot', seasons: [inProgress2025, complete2024, complete2023] })
 
     const trends = computeScoringTrends('u1', [history])
 
-    expect(trends).toHaveLength(1)
-    expect(trends[0].season).toBe('2024')
+    // Both seasons with data show up, not just the newest — the caller (ManagerProfilePage's
+    // family tabs + season select) decides which one to display.
+    expect(trends.map((t) => t.season)).toEqual(['2024', '2023'])
     expect(trends[0].points).toEqual([{ week: 1, score: 100 }])
   })
 
-  it('ignores PICKEM families entirely', () => {
-    const pickemHistory = family({
-      key: 'pickem',
-      type: 'PICKEM',
-      seasons: [season({ season: '2024', teams: [], weeklyMatchups: [matchup(1, side('u1', 'Me', 100), side('u2', 'Them', 90))] })],
+  it('includes PICKEM families, reading weeklyScores against pickemWeeks instead of weeklyMatchups', () => {
+    const pickemSeason = season({
+      season: '2024',
+      teams: [team({ ownerUserId: 'u1', teamName: 'Me', weeklyScores: [10, null, 20] })],
+      pickemWeeks: [1, 2, 3],
     })
+    const pickemHistory = family({ key: 'pickem', type: 'PICKEM', seasons: [pickemSeason] })
 
-    expect(computeScoringTrends('u1', [pickemHistory])).toEqual([])
+    const trends = computeScoringTrends('u1', [pickemHistory])
+
+    // Week 2 (index 1) is null — no data that week, distinct from a real 0 — so it's skipped.
+    expect(trends).toHaveLength(1)
+    expect(trends[0].points).toEqual([
+      { week: 1, score: 10 },
+      { week: 3, score: 20 },
+    ])
   })
 
   it('sorts points by week ascending regardless of matchup order', () => {

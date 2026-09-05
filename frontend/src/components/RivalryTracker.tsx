@@ -28,20 +28,20 @@ interface RivalryDescriptor {
 function describeRivalry(ownerDisplayName: string, opponentTeamName: string, record: HeadToHeadRecord): RivalryDescriptor {
   const { wins, losses } = record
   if (wins === 0 && losses === 0) {
-    return { title: 'Tense Mystery', flavorText: 'It\'s a classic will-they, won\'t-they. These two teams have yet to come head-to-head in the wild, but the rest of us wait with bated breath for the day that they do.' }
+    return { title: '❔Tense Mystery', flavorText: 'It\'s a classic will-they, won\'t-they. These two teams have yet to come head-to-head in the wild, but the rest of us wait with bated breath for the day that they do.' }
   }
   if (losses === 0) {
-    return { title: 'Undefeated', flavorText: `Matchups between these two teams have been difficult for both sides. On the one hand, ${opponentTeamName} has never won. On the other hand, ${ownerDisplayName} has never gotten a competitive opponent.` }
+    return { title: '🏅Undefeated', flavorText: `Matchups between these two teams have been difficult for both sides. On the one hand, ${opponentTeamName} has never won. On the other hand, ${ownerDisplayName} has never gotten a competitive opponent.` }
   }
   if (wins === 0) {
-    return { title: 'Utterly Winless', flavorText: `Try, try, and try again. Every time ${ownerDisplayName} bravely picks up the Sisyphean pursuit of challenging ${opponentTeamName}, it ends the same way. But one must admire the dedication.` }
+    return { title: '🤡 Utterly Winless', flavorText: `Try, try, and try again. Every time ${ownerDisplayName} bravely picks up the Sisyphean pursuit of challenging ${opponentTeamName}, it ends the same way. But one must admire the dedication.` }
   }
   if (Math.abs(wins - losses) <= 1) {
-    return { title: 'Certified Heated Rivalry', flavorText: 'Each time these two teams come head-to-head, the raw tension is palpable. Who will end up on top? Only time and an HBO suscription will tell.' }
+    return { title: '🥵 Certified Heated Rivalry', flavorText: 'Each time these two teams come head-to-head, the raw tension is palpable. Who will end up on top? Only time and an HBO suscription will tell.' }
   }
   const dominant = wins > losses ? ownerDisplayName : opponentTeamName
   const submissive = wins > losses ? opponentTeamName : ownerDisplayName
-  return { title: `${dominant} is ${submissive} Father`, flavorText: `Some matchups are close, some are tense. Not this one. Whenever these two teams meet, ${submissive} can be seen nervously tweaking their lineup, grasping for hope, while ${dominant} nonchalantly chalks up a W.` }
+  return { title: `👨‍🍼 ${dominant} is ${submissive} Father`, flavorText: `Some matchups are close, some are tense. Not this one. Whenever these two teams meet, ${submissive} can be seen nervously tweaking their lineup, grasping for hope, while ${dominant} nonchalantly chalks up a W.` }
 }
 
 /**

@@ -122,43 +122,61 @@ export interface ScoringTrendSeries {
 }
 
 /**
- * This owner's own score per week, for the most recent season *with any weekly data* in each
- * FANTASY family they're in (histories are expected already scoped to just the families that
- * owner appears in — see ManagerProfilePage). Deliberately not just history.seasons[0] — the
- * newest season is often the current one still in progress with nothing played yet, in which
- * case this falls back to the newest season that actually has something to show. Matches purely
- * by MatchupSide.ownerUserId, the team's primary owner — Sleeper's matchup data is per-roster,
- * not per-manager, so a co-manager's own trend isn't separately attributed today (see
- * MatchupSide); a known gap, not a bug.
+ * This owner's own score per week, for every season of every family they're in that has any
+ * weekly data at all — both FANTASY (their MatchupSide.score each week) and PICKEM (their
+ * TeamSummary.weeklyScores against that season's pickemWeeks; "weekly score" means something
+ * different there — a confidence-pool total, not head-to-head points-for — but both are a
+ * single per-week number worth graphing the same way). One entry per (family, season); a season
+ * with nothing played yet contributes no entry rather than an empty one. The caller picks which
+ * family + season to actually display (see ManagerProfilePage's trend family tabs/season select)
+ * rather than this function guessing "the" one to show, since which is most relevant depends on
+ * what the viewer wants to compare. Matches purely by ownerUserId, the team's primary owner —
+ * Sleeper's data is per-roster, not per-manager, so a co-manager's own trend isn't separately
+ * attributed today (see MatchupSide/TeamSummary); a known gap, not a bug.
  */
 export function computeScoringTrends(userId: string, histories: LeagueFamilyHistory[]): ScoringTrendSeries[] {
   const series: ScoringTrendSeries[] = []
   for (const history of histories) {
-    if (history.type !== 'FANTASY') {
-      continue
-    }
     for (const season of history.seasons) {
-      const points: ScoringTrendPoint[] = []
-      for (const matchup of season.weeklyMatchups) {
-        const side =
-          matchup.team1.ownerUserId === userId ? matchup.team1 : matchup.team2.ownerUserId === userId ? matchup.team2 : null
-        if (side) {
-          points.push({ week: matchup.week, score: side.score })
-        }
-      }
+      const points = history.type === 'PICKEM' ? pickemWeeklyPoints(userId, season) : fantasyWeeklyPoints(userId, season)
       if (points.length > 0) {
-        points.sort((a, b) => a.week - b.week)
         series.push({
           leagueFamilyKey: history.key,
           leagueFamilyDisplayName: history.displayName,
           season: season.season,
           points,
         })
-        break // newest-with-data only, per this family — see javadoc above
       }
     }
   }
   return series
+}
+
+function fantasyWeeklyPoints(userId: string, season: SeasonSummary): ScoringTrendPoint[] {
+  const points: ScoringTrendPoint[] = []
+  for (const matchup of season.weeklyMatchups) {
+    const side =
+      matchup.team1.ownerUserId === userId ? matchup.team1 : matchup.team2.ownerUserId === userId ? matchup.team2 : null
+    if (side) {
+      points.push({ week: matchup.week, score: side.score })
+    }
+  }
+  return points.sort((a, b) => a.week - b.week)
+}
+
+function pickemWeeklyPoints(userId: string, season: SeasonSummary): ScoringTrendPoint[] {
+  const team = season.teams.find((t) => t.ownerUserId === userId)
+  if (!team) {
+    return []
+  }
+  const points: ScoringTrendPoint[] = []
+  for (let i = 0; i < season.pickemWeeks.length; i++) {
+    const score = team.weeklyScores[i]
+    if (score !== null && score !== undefined) {
+      points.push({ week: season.pickemWeeks[i], score })
+    }
+  }
+  return points // season.pickemWeeks is already ascending — see SeasonSummary
 }
 
 export interface LeagueMembership {
